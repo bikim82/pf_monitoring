@@ -59,7 +59,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--fo
 /* Table */
 .tbl-wrap{padding:12px 18px 60px}
 .tbl-inner{background:var(--bg1);border:1px solid var(--border);border-radius:10px;overflow:hidden;overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:12px;min-width:680px}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
 th{padding:9px 11px;color:var(--t3);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
 th:first-child,th:nth-child(2){text-align:left}
 td{padding:10px 11px;border-bottom:1px solid rgba(255,255,255,.025);text-align:right;vertical-align:middle}
@@ -177,6 +177,7 @@ tbody tr:hover{background:var(--bg3)}
       <table>
         <thead><tr>
           <th>종목</th><th>현재가</th>
+          <th>1주일</th><th>1개월</th><th>YTD</th><th>1년</th>
           <th>MA50</th><th>MA100</th><th>MA250</th>
           <th>일목구름</th><th>TK신호</th>
           <th>52주위치</th><th>위험도</th>
@@ -357,7 +358,7 @@ function rsk(pr,m50,m100,m250,beta,h52,l52,vol){
 //  Fetch single ticker
 // ═══════════════════════════════════════════════
 async function fetchTk(p){
-  const url=`https://query2.finance.yahoo.com/v8/finance/chart/${p.t}?interval=1d&range=1y`;
+  const url=`https://query2.finance.yahoo.com/v8/finance/chart/${p.t}?interval=1d&range=18mo`;
   const d=await fx2(url);
   if(!d?.chart?.result?.[0])return null;
   const r=d.chart.result[0];
@@ -387,6 +388,40 @@ async function fetchTk(p){
   const beta=r.meta?.beta||1.0;
   const rs=rsk(price,ma50,ma100,ma250,beta,h52,l52,vol);
 
+  // Historical return helper
+  function histPrice(daysBack){
+    var targetTs = (Date.now()/1000) - daysBack*86400;
+    var best=null, bestDiff=Infinity;
+    for(var i=0;i<ts.length;i++){
+      if(!cl[i]||isNaN(cl[i]))continue;
+      var diff=Math.abs(ts[i]-targetTs);
+      if(diff<bestDiff){bestDiff=diff;best=cl[i];}
+    }
+    return best;
+  }
+  function histRet(daysBack){
+    var p=histPrice(daysBack);
+    return p&&p>0 ? +((price-p)/p*100).toFixed(1) : null;
+  }
+  // 지난주(5거래일), 지난달말(고정날짜), YTD(작년말), 1년전
+  var now=new Date();
+  var wkRet  = histRet(7);
+  var moRet  = histRet(30);
+  // YTD: Dec 31, 2025
+  var ytdTs  = new Date(now.getFullYear()-1,11,31).getTime()/1000;
+  function ytdPrice(){
+    var best=null,bestDiff=Infinity;
+    for(var i=0;i<ts.length;i++){
+      if(!cl[i]||isNaN(cl[i]))continue;
+      var d=Math.abs(ts[i]-ytdTs);
+      if(d<bestDiff){bestDiff=d;best=cl[i];}
+    }
+    return best;
+  }
+  var ytdP   = ytdPrice();
+  var ytdRet = ytdP&&ytdP>0 ? +((price-ytdP)/ytdP*100).toFixed(1) : null;
+  var y1Ret  = histRet(365);
+
   // Chart series (last 120)
   const sl=(arr)=>ts.slice(-120).map((t,j)=>{
     const v=arr[arr.length-120+j];
@@ -402,6 +437,7 @@ async function fetchTk(p){
   return{
     t:p.t,n:p.n,s:p.s,krw:p.krw||false,
     price:+price.toFixed(4),chg:+((price-prev)/prev*100).toFixed(2),
+    rets:{wk:wkRet,mo:moRet,ytd:ytdRet,y1:y1Ret},
     ma:{v50:isNaN(ma50)?null:+ma50.toFixed(2),v100:isNaN(ma100)?null:+ma100.toFixed(2),
         v250:isNaN(ma250)?null:+ma250.toFixed(2),
         p50:pct(ma50),p100:pct(ma100),p250:pct(ma250),
@@ -575,7 +611,15 @@ function sh(s,p){
 
 function renderTable(){
   let h='';
-  PORTFOLIO.forEach(p=>{
+  // Sort by KRW holding value descending
+  // Sort by KRW holding value (국내ETF: price=KRW, 해외: price=USD×FX)
+  var sorted = PORTFOLIO.slice().sort(function(a,b){
+    var ra=RES[a.t], rb=RES[b.t];
+    var va=ra?(ra.krw?ra.s*ra.price:ra.s*ra.price*FX):0;
+    var vb=rb?(rb.krw?rb.s*rb.price:rb.s*rb.price*FX):0;
+    return vb-va;
+  });
+  sorted.forEach(p=>{
     const r=RES[p.t];
     const col=colMap[p.t];
     if(!r){
@@ -600,6 +644,7 @@ function renderTable(){
         <div style="font-family:var(--mono);font-weight:600;font-size:12.5px">${prStr}</div>
         <div style="font-family:var(--mono);font-size:10px;color:${cc};margin-top:1px">${r.chg>=0?'+':''}${r.chg}%</div>
       </td>
+      ${['wk','mo','ytd','y1'].map(k=>{var v=r.rets?r.rets[k]:null;var col=v==null?'var(--t3)':v>=0?'var(--green)':'var(--red)';var txt=v==null?'—':(v>=0?'+':'')+v+'%';return '<td><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:'+col+'">'+txt+'</span></td>';}).join('')}
       <td>${sh(r.ma.s50,r.ma.p50)}</td>
       <td>${sh(r.ma.s100,r.ma.p100)}</td>
       <td>${sh(r.ma.s250,r.ma.p250)}</td>
@@ -614,6 +659,7 @@ function renderTable(){
   });
   document.getElementById('tbody').innerHTML=h;
 }
+
 
 // ═══════════════════════════════════════════════
 //  Detail Panel
