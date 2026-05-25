@@ -29,7 +29,7 @@ PORTFOLIO = [
     {"t":"INTC",      "s":15,  "n":"인텔",           "krw":False},
     {"t":"229200.KS", "s":227, "n":"KODEX 코스닥150","krw":True},
     {"t":"069500.KS", "s":243, "n":"KODEX 200",     "krw":True},
-    {"t":"192090.KS", "s":152, "n":"TIGER 일본TOPIX","krw":True},
+    {"t":"195920.KS", "s":152, "n":"TIGER 일본TOPIX","krw":True},
 ]
 
 SURGE_UP   =  5.0   # +5% 이상 급등
