@@ -63,7 +63,9 @@ table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
 th{padding:9px 11px;color:var(--t3);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
 th:first-child,th:nth-child(2){text-align:left}
 td{padding:10px 11px;border-bottom:1px solid rgba(255,255,255,.025);text-align:right;vertical-align:middle}
-td:first-child{text-align:left}
+td:first-child{text-align:left;position:sticky;left:0;background:var(--bg1);z-index:2}
+th:first-child{text-align:left;position:sticky;left:0;background:var(--bg2);z-index:3}
+tbody tr:hover td:first-child{background:var(--bg3)}
 td:nth-child(2){text-align:left}
 tr:last-child td{border-bottom:none}
 tbody tr{cursor:pointer;transition:background .1s}
@@ -176,7 +178,7 @@ tbody tr:hover{background:var(--bg3)}
     <div class="tbl-inner">
       <table>
         <thead><tr>
-          <th>종목</th><th>현재가</th>
+          <th>종목</th><th style="min-width:80px">섹터</th><th>현재가</th>
           <th>1주일</th><th>1개월</th><th>YTD</th><th>1년</th>
           <th>MA50</th><th>MA100</th><th>MA250</th>
           <th>일목구름</th><th>TK신호</th>
@@ -206,8 +208,9 @@ tbody tr:hover{background:var(--bg3)}
         <div class="leg"><div class="leg-l" style="background:#f85149"></div>MA250</div>
         <div class="leg"><div class="leg-l" style="background:#bc8cff"></div>전환선</div>
         <div class="leg"><div class="leg-l" style="background:#fb923c"></div>기준선</div>
-        <div class="leg"><div class="leg-a" style="background:rgba(88,166,255,.35)"></div>구름(SA)</div>
-        <div class="leg"><div class="leg-a" style="background:rgba(248,81,73,.25)"></div>구름(SB)</div>
+        <div class="leg"><div class="leg-l" style="background:rgba(0,210,100,.9)"></div>선행A(구름상단)</div>
+        <div class="leg"><div class="leg-l" style="background:rgba(255,80,80,.9)"></div>선행B(구름하단)</div>
+        <div class="leg"><div class="leg-a" style="background:rgba(80,200,120,.35);height:7px;border:1px solid rgba(0,210,100,.4)"></div>구름영역</div>
       </div>
     </div>
     <div class="dinfo" id="dinfo"></div>
@@ -220,6 +223,12 @@ tbody tr:hover{background:var(--bg3)}
 // ═══════════════════════════════════════════════
 const PIN = '1104';       // ← PIN 변경
 
+const SECTORS = {
+  NVDA:'반도체',GOOGL:'빅테크',IONQ:'양자컴퓨팅',AVGO:'반도체',
+  LLY:'헬스케어',AMZN:'빅테크',KBWB:'금융',AOR:'혼합자산',
+  BITO:'암호화폐',INTC:'반도체',CPNG:'이커머스',PLTR:'AI/데이터',
+  'BRK-B':'금융','229200.KS':'국내주식','069500.KS':'국내주식','192090.KS':'해외주식',
+};
 const PORTFOLIO = [
   // 삼성증권 — 해외주식
   {t:'NVDA',  s:39,  n:'엔비디아',           acct:'삼성'},
@@ -640,6 +649,12 @@ function renderTable(){
         <div class="tk-dot" style="background:${col};box-shadow:0 0 5px ${col}55"></div>
         <div><div class="tk-name">${p.t}</div><div class="tk-sub">${p.n} · ${p.acct}</div></div>
       </div></td>
+      <td style="white-space:nowrap">
+        <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;
+          background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)">
+          ${SECTORS[p.t]||'기타'}
+        </span>
+      </td>
       <td>
         <div style="font-family:var(--mono);font-weight:600;font-size:12.5px">${prStr}</div>
         <div style="font-family:var(--mono);font-size:10px;color:${cc};margin-top:1px">${r.chg>=0?'+':''}${r.chg}%</div>
@@ -709,22 +724,31 @@ function buildChart(r,col){
   const ch=r.chart;
 
   // Ichimoku cloud — SA area (top half)
-  if(ch.sa?.length){
-    const saS=lwChart.addAreaSeries({
-      lineColor:'rgba(88,166,255,0.6)',lineWidth:1,
-      topColor:'rgba(88,166,255,0.18)',bottomColor:'rgba(88,166,255,0)',
-      priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:false,
+  // Ichimoku Cloud — SA와 SB 사이를 채워서 구름 표현
+  if(ch.sa?.length && ch.sb?.length){
+    // 구름 위쪽 경계 (SA) - 초록 라인
+    const saS=lwChart.addLineSeries({
+      color:'rgba(0,210,100,0.85)', lineWidth:1,
+      lineStyle:LightweightCharts.LineStyle.Solid,
+      priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
     });
     saS.setData(ch.sa);
-  }
-  // SB area (bottom half — fill creates cloud)
-  if(ch.sb?.length){
-    const sbS=lwChart.addAreaSeries({
-      lineColor:'rgba(248,81,73,0.6)',lineWidth:1,
-      topColor:'rgba(248,81,73,0)',bottomColor:'rgba(248,81,73,0)',
-      priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:false,
+    // 구름 아래쪽 경계 (SB) - 빨간 라인
+    const sbS=lwChart.addLineSeries({
+      color:'rgba(255,80,80,0.85)', lineWidth:1,
+      lineStyle:LightweightCharts.LineStyle.Solid,
+      priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
     });
     sbS.setData(ch.sb);
+    // SA 기준 fill (구름 본체 — 위쪽을 채워서 구름 느낌)
+    const cloudFill=lwChart.addAreaSeries({
+      lineColor:'rgba(0,0,0,0)', lineWidth:0,
+      topColor:'rgba(80,200,120,0.28)',
+      bottomColor:'rgba(255,100,100,0.18)',
+      priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
+    });
+    // Use SA for the area top
+    cloudFill.setData(ch.sa);
   }
 
   // Candlestick
