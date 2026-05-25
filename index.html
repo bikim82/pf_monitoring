@@ -208,9 +208,9 @@ tbody tr:hover{background:var(--bg3)}
         <div class="leg"><div class="leg-l" style="background:#f85149"></div>MA250</div>
         <div class="leg"><div class="leg-l" style="background:#bc8cff"></div>전환선</div>
         <div class="leg"><div class="leg-l" style="background:#fb923c"></div>기준선</div>
-        <div class="leg"><div class="leg-l" style="background:rgba(0,210,100,.9)"></div>선행A(구름상단)</div>
-        <div class="leg"><div class="leg-l" style="background:rgba(255,80,80,.9)"></div>선행B(구름하단)</div>
-        <div class="leg"><div class="leg-a" style="background:rgba(80,200,120,.35);height:7px;border:1px solid rgba(0,210,100,.4)"></div>구름영역</div>
+        <div class="leg"><div class="leg-l" style="background:#26c6da"></div>선행A</div>
+        <div class="leg"><div class="leg-l" style="background:#ef9a9a"></div>선행B</div>
+        <div class="leg"><div class="leg-a" style="background:rgba(38,166,154,.4);height:7px;border:1px solid rgba(38,166,154,.6)"></div>구름 (SA↔SB)</div>
       </div>
     </div>
     <div class="dinfo" id="dinfo"></div>
@@ -336,15 +336,22 @@ function sma(a,w){
   return o;
 }
 function ichi(hi,lo){
-  const n=hi.length,tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
-  const sa=new Array(n).fill(NaN),sb=new Array(n).fill(NaN);
+  const n=hi.length;
+  const tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
+  // SA·SB는 26봉 앞으로 shift → 배열을 n+26 크기로
+  const sa=new Array(n+26).fill(NaN),sb=new Array(n+26).fill(NaN);
   for(let i=0;i<n;i++){
+    // 전환선: 9봉 고저 중간값
     if(i>=8){const h=Math.max(...hi.slice(i-8,i+1)),l=Math.min(...lo.slice(i-8,i+1));tn[i]=(h+l)/2;}
+    // 기준선: 26봉 고저 중간값
     if(i>=25){const h=Math.max(...hi.slice(i-25,i+1)),l=Math.min(...lo.slice(i-25,i+1));kj[i]=(h+l)/2;}
-    const ti=Math.max(0,i-26);if(!isNaN(tn[ti])&&!isNaN(kj[ti]))sa[i]=(tn[ti]+kj[ti])/2;
-    if(i>=51){const h=Math.max(...hi.slice(i-51,i+1)),l=Math.min(...lo.slice(i-51,i+1));sb[i]=(h+l)/2;}
+    // 선행스팬A: (전환+기준)/2 → 26봉 앞에 배치
+    if(!isNaN(tn[i])&&!isNaN(kj[i])) sa[i+26]=(tn[i]+kj[i])/2;
+    // 선행스팬B: 52봉 고저 중간값 → 26봉 앞에 배치
+    if(i>=51){const h=Math.max(...hi.slice(i-51,i+1)),l=Math.min(...lo.slice(i-51,i+1));sb[i+26]=(h+l)/2;}
   }
-  return {tn,kj,sa,sb};
+  // 차트용: 현재봉 범위 내만 사용 (n개)
+  return {tn, kj, sa, sb};  // sa/sb are n+26 length (26봉 앞 미래 포함)
 }
 function cross(fv,sv,lb=10){
   const n=fv.length;
@@ -367,7 +374,7 @@ function rsk(pr,m50,m100,m250,beta,h52,l52,vol){
 //  Fetch single ticker
 // ═══════════════════════════════════════════════
 async function fetchTk(p){
-  const url=`https://query2.finance.yahoo.com/v8/finance/chart/${p.t}?interval=1d&range=18mo`;
+  const url=`https://query2.finance.yahoo.com/v8/finance/chart/${p.t}?interval=1d&range=2y`;
   const d=await fx2(url);
   if(!d?.chart?.result?.[0])return null;
   const r=d.chart.result[0];
@@ -432,16 +439,37 @@ async function fetchTk(p){
   var y1Ret  = histRet(365);
 
   // Chart series (last 120)
-  const sl=(arr)=>ts.slice(-120).map((t,j)=>{
-    const v=arr[arr.length-120+j];
-    return isNaN(v)?null:{time:t,value:+v.toFixed(4)};
-  }).filter(Boolean);
-  const ohlc=ts.slice(-120).map((t,j)=>{
-    const i=cl.length-120+j;
-    if(i<0||isNaN(cl[i]))return null;
-    return{time:t,open:+op[i].toFixed(4),high:+hi[i].toFixed(4),
-           low:+lo[i].toFixed(4),close:+cl[i].toFixed(4)};
-  }).filter(Boolean);
+  // 직전년도 1/1부터 차트 표시
+  const prevYearStart = new Date(new Date().getFullYear()-1, 0, 1).getTime()/1000;
+
+  // 미래 타임스탬프 생성 (약 2개월 = 40 거래일, 주말 제외)
+  const futureTs=[];
+  let nextTs=ts[ts.length-1];
+  while(futureTs.length < 44){
+    nextTs += 86400;
+    const dow=new Date(nextTs*1000).getUTCDay();
+    if(dow>0 && dow<6) futureTs.push(nextTs);
+  }
+  // 전체 타임스탬프 (역사 + 미래)
+  const extTs=[...ts, ...futureTs];
+
+  // 날짜 필터 헬퍼
+  const sl=(arr)=>ts
+    .map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null)
+    .filter(Boolean);
+
+  // SA/SB: 역사 + 미래 26봉 포함 (선행스팬 미래 구름)
+  const slSASB=(arr)=>extTs
+    .map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null)
+    .filter(Boolean);
+
+  // OHLC (직전년도 1/1 이후)
+  const ohlc=ts
+    .map((t,i)=>{
+      if(t<prevYearStart||isNaN(cl[i]))return null;
+      return{time:t,open:+op[i].toFixed(4),high:+hi[i].toFixed(4),
+             low:+lo[i].toFixed(4),close:+cl[i].toFixed(4)};
+    }).filter(Boolean);
 
   return{
     t:p.t,n:p.n,s:p.s,krw:p.krw||false,
@@ -457,7 +485,7 @@ async function fetchTk(p){
         vsH:+((price-h52)/h52*100).toFixed(1),rp},
     risk:{score:rs,beta:+(beta).toFixed(2),vol:+vol.toFixed(1)},
     chart:{ohlc,m50:sl(m50v),m100:sl(m100v),m250:sl(m250v),
-           tn:sl(tn),kj:sl(kj),sa:sl(sa),sb:sl(sb)},
+           tn:sl(tn),kj:sl(kj),sa:slSASB(sa),sb:slSASB(sb)},
   };
 }
 
@@ -724,31 +752,55 @@ function buildChart(r,col){
   const ch=r.chart;
 
   // Ichimoku cloud — SA area (top half)
-  // Ichimoku Cloud — SA와 SB 사이를 채워서 구름 표현
+  // Ichimoku Cloud — SA/SB 사이 밴드를 정확하게 채움
   if(ch.sa?.length && ch.sb?.length){
-    // 구름 위쪽 경계 (SA) - 초록 라인
-    const saS=lwChart.addLineSeries({
-      color:'rgba(0,210,100,0.85)', lineWidth:1,
-      lineStyle:LightweightCharts.LineStyle.Solid,
+    // SA·SB 맵 구성
+    const saMap={}, sbMap={};
+    ch.sa.forEach(p=>saMap[p.time]=p.value);
+    ch.sb.forEach(p=>sbMap[p.time]=p.value);
+    const allT=[...new Set([...ch.sa.map(p=>p.time),...ch.sb.map(p=>p.time)])].sort();
+
+    // 구름 상단(max) / 하단(min) 데이터
+    const cloudTop=[], cloudBot=[];
+    allT.forEach(t=>{
+      const sa=saMap[t], sb=sbMap[t];
+      if(sa!=null&&sb!=null){
+        cloudTop.push({time:t, value:Math.max(sa,sb)});
+        cloudBot.push({time:t, value:Math.min(sa,sb)});
+      }
+    });
+
+    // ① 구름 상단에서 아래로 색 채움 (초록 반투명)
+    const cloudTopSeries=lwChart.addAreaSeries({
+      lineColor:'transparent', lineWidth:0,
+      topColor:'rgba(38,166,154,0.38)',
+      bottomColor:'rgba(38,166,154,0.38)',
       priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
     });
-    saS.setData(ch.sa);
-    // 구름 아래쪽 경계 (SB) - 빨간 라인
-    const sbS=lwChart.addLineSeries({
-      color:'rgba(255,80,80,0.85)', lineWidth:1,
-      lineStyle:LightweightCharts.LineStyle.Solid,
+    cloudTopSeries.setData(cloudTop);
+
+    // ② 구름 하단에서 아래를 차트 배경색으로 마스킹 → 구름 밴드만 보임
+    const cloudBotSeries=lwChart.addAreaSeries({
+      lineColor:'transparent', lineWidth:0,
+      topColor:'#0d1117',
+      bottomColor:'#0d1117',
       priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
     });
-    sbS.setData(ch.sb);
-    // SA 기준 fill (구름 본체 — 위쪽을 채워서 구름 느낌)
-    const cloudFill=lwChart.addAreaSeries({
-      lineColor:'rgba(0,0,0,0)', lineWidth:0,
-      topColor:'rgba(80,200,120,0.28)',
-      bottomColor:'rgba(255,100,100,0.18)',
+    cloudBotSeries.setData(cloudBot);
+
+    // ③ SA 라인 (선행스팬A) — 청록 실선
+    const saLine=lwChart.addLineSeries({
+      color:'#26c6da', lineWidth:1.5,
       priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
     });
-    // Use SA for the area top
-    cloudFill.setData(ch.sa);
+    saLine.setData(ch.sa);
+
+    // ④ SB 라인 (선행스팬B) — 연한 빨간 실선
+    const sbLine=lwChart.addLineSeries({
+      color:'#ef9a9a', lineWidth:1.5,
+      priceLineVisible:false, crosshairMarkerVisible:false, lastValueVisible:false,
+    });
+    sbLine.setData(ch.sb);
   }
 
   // Candlestick
@@ -777,7 +829,10 @@ function buildChart(r,col){
       .setData(ch[cfg.k]);
   });
 
-  lwChart.timeScale().fitContent();
+  // 직전년도 1/1 ~ 현재 + 2개월 visible range
+  const from = new Date(new Date().getFullYear()-1, 0, 1).getTime()/1000;
+  const to   = Math.floor(Date.now()/1000) + 60*86400; // 현재 + 60일
+  lwChart.timeScale().setVisibleRange({from, to});
   window.onresize=()=>{ if(lwChart){ const w=box.getBoundingClientRect().width||window.innerWidth-340; lwChart.resize(Math.max(w,280),400); } };
 }
 
