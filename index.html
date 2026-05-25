@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>아이 PF Monitor</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+:root{
+  --bg0:#07090f;--bg1:#0d1117;--bg2:#161b22;--bg3:#1c2230;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --t1:#e6edf3;--t2:#8b949e;--t3:#484f58;
+  --green:#3fb950;--red:#f85149;--amber:#d29922;
+  --blue:#58a6ff;--purple:#bc8cff;--teal:#39d353;
+  --font:'Pretendard',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--font)}
+
+/* Loading */
+#loading{position:fixed;inset:0;background:var(--bg0);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999}
+.load-logo{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--blue);margin-bottom:32px}
+.load-bar-wrap{width:280px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.load-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:2px;transition:width .3s}
+.load-status{font-size:12px;color:var(--t3);font-family:var(--mono);min-height:18px}
+
+/* Header */
+.header{padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg1);position:sticky;top:0;z-index:50;gap:10px;flex-wrap:wrap}
+.logo{font-size:13px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--blue)}
+.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.updated{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.refresh-btn{padding:5px 14px;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--t2);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.refresh-btn:hover{background:var(--bg3);color:var(--t1)}
+.refresh-btn:disabled{opacity:.4;cursor:default}
+
+/* Alert strip */
+.alerts{padding:7px 20px;display:flex;gap:8px;overflow-x:auto;border-bottom:1px solid var(--border);background:var(--bg1);min-height:36px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;font-family:var(--mono)}
+.pill.gc{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);color:var(--green)}
+.pill.dc{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.25);color:var(--red)}
+.pill.ca{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);color:var(--blue)}
+.pill.cb{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.2);color:var(--red)}
+.pill.nh{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.2);color:var(--amber)}
+.pill.err{background:rgba(72,79,88,.15);border:1px solid var(--border);color:var(--t3)}
+
+/* Summary row */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:14px 20px;border-bottom:1px solid var(--border)}
+.sumcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.sumlbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.sumval{font-size:16px;font-weight:700;font-family:var(--mono)}
+
+/* Table */
+.tbl-wrap{padding:14px 20px 60px}
+.tbl-inner{background:var(--bg1);border:1px solid var(--border);border-radius:10px;overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px}
+th{padding:10px 12px;color:var(--t3);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+th:first-child,th:nth-child(2){text-align:left}
+td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:right;vertical-align:middle}
+td:first-child{text-align:left}
+td:nth-child(2){text-align:left}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer;transition:background .1s}
+tbody tr:hover{background:var(--bg3)}
+.tk-row{display:flex;align-items:center;gap:8px}
+.tk-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tk-name{font-weight:700;font-size:13px}
+.tk-sub{font-size:10px;color:var(--t3)}
+.price-v{font-family:var(--mono);font-weight:600}
+.price-c{font-family:var(--mono);font-size:10px;margin-top:1px}
+.sig{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--mono)}
+.sig.a{background:rgba(63,185,80,.12);color:var(--green)}
+.sig.b{background:rgba(248,81,73,.12);color:var(--red)}
+.sig.n{background:rgba(210,153,34,.1);color:var(--amber)}
+.sig.x{background:rgba(72,79,88,.15);color:var(--t3)}
+.cloud{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700}
+.cloud.a{background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.2)}
+.cloud.i{background:rgba(210,153,34,.08);color:var(--amber);border:1px solid rgba(210,153,34,.18)}
+.cloud.b{background:rgba(248,81,73,.1);color:var(--red);border:1px solid rgba(248,81,73,.2)}
+.rbar{width:68px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.rbar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),var(--purple))}
+.rscore{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-family:var(--mono);font-weight:700;font-size:12px;border:2px solid}
+.rscore.l{background:rgba(63,185,80,.08);color:var(--green);border-color:rgba(63,185,80,.25)}
+.rscore.m{background:rgba(210,153,34,.08);color:var(--amber);border-color:rgba(210,153,34,.25)}
+.rscore.h{background:rgba(248,81,73,.08);color:var(--red);border-color:rgba(248,81,73,.25)}
+
+/* Detail overlay */
+.detail{display:none;position:fixed;inset:0;background:var(--bg0);z-index:200;overflow-y:auto}
+.dh{padding:12px 20px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);background:var(--bg1);position:sticky;top:0;flex-wrap:wrap}
+.back{padding:5px 14px;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--t2);font:600 12px var(--font);cursor:pointer}
+.back:hover{background:var(--bg3);color:var(--t1)}
+.db{display:grid;grid-template-columns:1fr 320px;min-height:calc(100vh - 55px)}
+.dchart{padding:16px 20px;border-right:1px solid var(--border)}
+.chart-box{width:100%;height:400px;border-radius:8px;overflow:hidden;background:var(--bg1)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)}
+.leg-line{width:14px;height:2px;border-radius:1px}
+.dinfo{padding:16px;overflow-y:auto}
+.sec{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;margin-top:16px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px}
+.sc{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:9px 11px}
+.slbl{font-size:9.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}
+.sval{font-size:13px;font-weight:600;font-family:var(--mono)}
+.news-a{display:block;padding:9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:5px;text-decoration:none;transition:all .12s}
+.news-a:hover{background:var(--bg3);border-color:var(--border2)}
+.ntitle{font-size:12px;line-height:1.5;color:var(--t1);margin-bottom:3px}
+.nmeta{font-size:10px;color:var(--t3);font-family:var(--mono)}
+.err-row{font-size:11px;color:var(--t3);padding:8px 0;font-family:var(--mono)}
+@media(max-width:700px){.db{grid-template-columns:1fr}.dchart{border-right:none;border-bottom:1px solid var(--border)}}
+</style>
+</head>
+<body>
+
+<!-- ── PIN Lock ────────────────────────────── -->
+<div id="pin-screen" style="
+  position:fixed;inset:0;background:var(--bg0);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;padding:20px">
+  <div style="font-size:11px;font-weight:700;letter-spacing:3px;color:var(--blue);margin-bottom:40px;display:flex;align-items:center;gap:8px">
+    <span style="width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--blue);display:inline-block"></span>
+    아이 PF Monitor
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:36px 40px;text-align:center;width:100%;max-width:320px">
+    <div style="font-size:24px;margin-bottom:8px">🔒</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">PIN 입력</div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:24px">접근 권한이 있는 사용자만 이용 가능합니다</div>
+
+    <!-- PIN dots display -->
+    <div id="pin-dots" style="display:flex;gap:12px;justify-content:center;margin-bottom:24px">
+      <div class="pin-dot"></div><div class="pin-dot"></div>
+      <div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+
+    <!-- Numpad -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="numpad">
+      <button class="numkey" onclick="pinInput('1')">1</button>
+      <button class="numkey" onclick="pinInput('2')">2</button>
+      <button class="numkey" onclick="pinInput('3')">3</button>
+      <button class="numkey" onclick="pinInput('4')">4</button>
+      <button class="numkey" onclick="pinInput('5')">5</button>
+      <button class="numkey" onclick="pinInput('6')">6</button>
+      <button class="numkey" onclick="pinInput('7')">7</button>
+      <button class="numkey" onclick="pinInput('8')">8</button>
+      <button class="numkey" onclick="pinInput('9')">9</button>
+      <button class="numkey" onclick="pinClear()" style="color:var(--t3);font-size:14px">⌫</button>
+      <button class="numkey" onclick="pinInput('0')">0</button>
+      <button class="numkey" onclick="pinSubmit()" style="background:var(--blue);color:#000;font-weight:700">✓</button>
+    </div>
+
+    <div id="pin-error" style="font-size:12px;color:var(--red);height:18px;transition:opacity .2s"></div>
+  </div>
+  <div style="font-size:10px;color:var(--t3);margin-top:24px">이 세션에서는 한 번만 입력하면 됩니다</div>
+</div>
+
+<style>
+.pin-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:all .15s}
+.pin-dot.filled{background:var(--blue);border-color:var(--blue);box-shadow:0 0 8px var(--blue)44}
+.numkey{
+  padding:14px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--t1);font-family:var(--mono);
+  font-size:18px;font-weight:600;cursor:pointer;transition:all .1s;
+}
+.numkey:hover{background:var(--bg2);border-color:var(--border2);transform:scale(1.04)}
+.numkey:active{transform:scale(.97)}
+</style>
+<div id="loading">
+  <div class="load-logo">📊 PF MONITOR</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="lbar" style="width:0%"></div></div>
+  <div class="load-status" id="lstatus">초기화 중...</div>
+</div>
+
+<!-- ── App ──────────────────────────────── -->
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="logo"><span class="logo-dot"></span>아이 PF Monitor</div>
+    <div class="header-right">
+      <span class="updated" id="updated-time"></span>
+      <button class="refresh-btn" id="refresh-btn" onclick="startLoad()">🔄 새로고침</button>
+    </div>
+  </div>
+  <div class="alerts" id="alerts"></div>
+  <div class="summary" id="summary"></div>
+  <div class="tbl-wrap">
+    <div class="tbl-inner">
+      <table>
+        <thead><tr>
+          <th>종목</th><th>현재가</th>
+          <th>MA50</th><th>MA100</th><th>MA250</th>
+          <th>일목구름</th><th>TK</th>
+          <th>52주위치</th><th>위험도</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Detail ────────────────────────────── -->
+<div id="detail" class="detail">
+  <div class="dh">
+    <button class="back" onclick="closeDetail()">← 목록</button>
+    <span id="d-tk" style="font-size:20px;font-weight:700"></span>
+    <span id="d-name" style="font-size:12px;color:var(--t3)"></span>
+    <span id="d-price" style="font-size:17px;font-weight:700;font-family:var(--mono)"></span>
+    <span id="d-chg"   style="font-size:13px;font-family:var(--mono)"></span>
+  </div>
+  <div class="db">
+    <div class="dchart">
+      <div class="chart-box" id="chart-box"></div>
+      <div class="legend">
+        <div class="leg"><div class="leg-line" style="background:#58a6ff"></div>MA50</div>
+        <div class="leg"><div class="leg-line" style="background:#d29922"></div>MA100</div>
+        <div class="leg"><div class="leg-line" style="background:#f85149"></div>MA250</div>
+        <div class="leg"><div class="leg-line" style="background:#bc8cff"></div>전환선</div>
+        <div class="leg"><div class="leg-line" style="background:#fb923c"></div>기준선</div>
+        <div class="leg"><div class="leg-line" style="background:rgba(88,166,255,.35);height:8px;border-radius:2px"></div>구름</div>
+      </div>
+    </div>
+    <div class="dinfo" id="dinfo"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  ★ PIN 설정 (여기 숫자를 원하는 PIN으로 변경)
+// ════════════════════════════════════════
+const CORRECT_PIN = '11044989';   // ← 원하는 PIN으로 변경하세요
+
+// ── PIN Logic ──────────────────────────
+let pinValue = '';
+
+function pinInput(n) {
+  if (pinValue.length >= 4) return;
+  pinValue += n;
+  updateDots();
+  if (pinValue.length === 4) setTimeout(pinSubmit, 150);
+}
+
+function pinClear() {
+  pinValue = pinValue.slice(0,-1);
+  updateDots();
+  document.getElementById('pin-error').textContent = '';
+}
+
+function updateDots() {
+  document.querySelectorAll('.pin-dot').forEach((d,i) => {
+    d.classList.toggle('filled', i < pinValue.length);
+  });
+}
+
+function pinSubmit() {
+  if (pinValue === CORRECT_PIN) {
+    sessionStorage.setItem('pf_unlocked','1');
+    document.getElementById('pin-screen').style.display = 'none';
+    startLoad();
+  } else {
+    document.getElementById('pin-error').textContent = '❌ PIN이 틀렸습니다';
+    pinValue = '';
+    updateDots();
+    const el = document.getElementById('pin-screen');
+    el.style.animation = 'shake .3s';
+    setTimeout(()=>el.style.animation='',300);
+  }
+}
+
+// 이미 인증된 세션이면 바로 통과
+(function checkSession() {
+  if (sessionStorage.getItem('pf_unlocked') === '1') {
+    document.getElementById('pin-screen').style.display = 'none';
+    window.addEventListener('load', startLoad);
+  }
+  // 키보드 입력 지원
+  document.addEventListener('keydown', e => {
+    if (document.getElementById('pin-screen').style.display === 'none') return;
+    if (e.key >= '0' && e.key <= '9') pinInput(e.key);
+    if (e.key === 'Backspace') pinClear();
+    if (e.key === 'Enter') pinSubmit();
+  });
+})();
+
+// shake animation
+const style = document.createElement('style');
+style.textContent = '@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}';
+document.head.appendChild(style);
+
+// ════════════════════════════════════════
+//  ★ 포트폴리오 설정 (여기만 수정)
+// ════════════════════════════════════════
+const PORTFOLIO = [
+  // 삼성증권 - 해외주식
+  { ticker:'NVDA',     shares:39,  name:'엔비디아',            account:'삼성증권' },
+  { ticker:'GOOGL',    shares:30,  name:'알파벳 A',            account:'삼성증권' },
+  { ticker:'IONQ',     shares:55,  name:'아이온큐',            account:'삼성증권' },
+  { ticker:'AVGO',     shares:11,  name:'브로드컴',            account:'삼성증권' },
+  { ticker:'LLY',      shares:3,   name:'일라이 릴리',         account:'삼성증권' },
+  { ticker:'AMZN',     shares:9,   name:'아마존',              account:'삼성증권' },
+  { ticker:'BRK-B',    shares:9,   name:'버크셔 B',            account:'삼성증권' },
+  { ticker:'PLTR',     shares:10,  name:'팔란티어',            account:'삼성증권' },
+  { ticker:'CPNG',     shares:100, name:'쿠팡',                account:'삼성증권' },
+  { ticker:'KBWB',     shares:18,  name:'Invesco KBW Bank',   account:'삼성증권' },
+  { ticker:'AOR',      shares:72,  name:'iShares Core Growth', account:'삼성증권' },
+  { ticker:'BITO',     shares:44,  name:'ProShares BTC ETF',  account:'삼성증권' },
+  { ticker:'INTC',     shares:15,  name:'인텔',                account:'삼성증권' },
+  // 삼성증권 - 국내ETF
+  { ticker:'229200.KS',shares:227, name:'KODEX 코스닥150',     account:'삼성증권' },
+  // 신한증권
+  { ticker:'069500.KS',shares:243, name:'KODEX 200',          account:'신한증권' },
+  { ticker:'192090.KS',shares:152, name:'TIGER 일본TOPIX',    account:'신한증권' },
+];
+
+// USD/KRW 환율 (자동 갱신)
+let KRW_RATE = 1520;
+
+// 색상 팔레트
+const COLORS = ['#58a6ff','#3fb950','#bc8cff','#d29922',
+                 '#f85149','#39d353','#fb923c','#ec4899',
+                 '#60a5fa','#34d399','#a78bfa','#fbbf24',
+                 '#f97316','#06b6d4','#84cc16','#e879f9'];
+const COL = {}; PORTFOLIO.forEach((p,i)=>COL[p.ticker]=COLORS[i%COLORS.length]);
+
+// 결과 저장소
+let RESULTS = {};
+let lwChart = null;
+
+// ════════════════════════════════════════
+//  Proxy / Fetch
+// ════════════════════════════════════════
+const PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => u,
+];
+
+async function fetchJson(url, ms=9000) {
+  for (const make of PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), ms);
+      const r  = await fetch(make(url), {signal:ctrl.signal});
+      clearTimeout(t);
+      const raw = await r.json();
+      return raw.contents ? JSON.parse(raw.contents) : raw;
+    } catch {}
+  }
+  return null;
+}
+
+async function fetchKRW() {
+  const d = await fetchJson('https://open.er-api.com/v6/latest/USD', 5000);
+  if (d?.rates?.KRW) KRW_RATE = d.rates.KRW;
+}
+
+// ════════════════════════════════════════
+//  Technicals (JS)
+// ════════════════════════════════════════
+function sma(arr, w) {
+  const out = new Array(arr.length).fill(NaN);
+  for (let i = w-1; i < arr.length; i++) {
+    let s=0; for(let j=i-w+1;j<=i;j++) s+=arr[j];
+    out[i] = s/w;
+  }
+  return out;
+}
+
+function ichimoku(highs, lows, closes) {
+  const n = closes.length;
+  const tn = new Array(n).fill(NaN);
+  const kj = new Array(n).fill(NaN);
+  const sa = new Array(n).fill(NaN);
+  const sb = new Array(n).fill(NaN);
+
+  for (let i=0;i<n;i++) {
+    if (i>=8)  { const h=Math.max(...highs.slice(i-8,i+1)),l=Math.min(...lows.slice(i-8,i+1)); tn[i]=(h+l)/2; }
+    if (i>=25) { const h=Math.max(...highs.slice(i-25,i+1)),l=Math.min(...lows.slice(i-25,i+1)); kj[i]=(h+l)/2; }
+    if (i>=25) { sa[i]=(tn[i-26<0?0:i-26]+kj[i-26<0?0:i-26])/2; } // approx (shift already applied)
+    if (i>=51) { const h=Math.max(...highs.slice(i-51,i+1)),l=Math.min(...lows.slice(i-51,i+1)); sb[i]=(h+l)/2; }
+  }
+  return {tn,kj,sa,sb};
+}
+
+function detectCross(fast, slow, lookback=10) {
+  const n = fast.length;
+  for (let i=n-lookback; i<n; i++) {
+    if (isNaN(fast[i-1])||isNaN(slow[i-1])||isNaN(fast[i])||isNaN(slow[i])) continue;
+    if (fast[i-1]<slow[i-1] && fast[i]>slow[i]) return 'golden';
+    if (fast[i-1]>slow[i-1] && fast[i]<slow[i]) return 'death';
+  }
+  return null;
+}
+
+function riskScore(price, ma50, ma100, ma250, beta, w52h, w52l, vol) {
+  let s=50;
+  if (!isNaN(beta))  s+=Math.min(Math.max((beta-1)*12,-15),20);
+  if (!isNaN(vol))   s+=Math.min((vol-20)*0.45,25);
+  [ma50,ma100,ma250].forEach(m=>{ if(!isNaN(m)) s+= price<m ? 5:-2; });
+  if (w52h>w52l) s+=(((price-w52l)/(w52h-w52l))-0.5)*20;
+  return Math.max(0,Math.min(100,Math.round(s)));
+}
+
+// ════════════════════════════════════════
+//  Fetch one ticker
+// ════════════════════════════════════════
+async function fetchTicker(ticker) {
+  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y`;
+  const d = await fetchJson(url);
+  if (!d?.chart?.result?.[0]) return null;
+
+  const r    = d.chart.result[0];
+  const meta = r.meta;
+  const ts   = r.timestamp;
+  const q    = r.indicators.quote[0];
+  const cl   = q.close, hi = q.high, lo = q.low, op = q.open;
+
+  if (!cl?.length) return null;
+
+  const price  = cl[cl.length-1];
+  const prev   = cl[cl.length-2] || price;
+  const chgPct = (price-prev)/prev*100;
+
+  // MAs
+  const ma50v  = sma(cl,50);
+  const ma100v = sma(cl,100);
+  const ma250v = sma(cl,250);
+  const ma50   = ma50v[cl.length-1];
+  const ma100  = ma100v[cl.length-1];
+  const ma250  = ma250v[cl.length-1];
+
+  // MA signals
+  const sig = m => isNaN(m)?'x': (price/m-1)*100>3?'a':(price/m-1)*100<-3?'b':'n';
+  const pct = m => isNaN(m)?null: +((price/m-1)*100).toFixed(1);
+
+  // Crosses
+  const cross50_100 = detectCross(ma50v, ma100v);
+  const cross50_250 = detectCross(ma50v, ma250v);
+
+  // Ichimoku
+  const {tn,kj,sa,sb} = ichimoku(hi,lo,cl);
+  const n = cl.length;
+  const lastTn = tn[n-1], lastKj=kj[n-1], lastSa=sa[n-1], lastSb=sb[n-1];
+  const cloudTop = isNaN(lastSa)||isNaN(lastSb)?NaN:Math.max(lastSa,lastSb);
+  const cloudBot = isNaN(lastSa)||isNaN(lastSb)?NaN:Math.min(lastSa,lastSb);
+  const cloudPos = isNaN(cloudTop)?'x': price>cloudTop?'a': price<cloudBot?'b':'i';
+  const tkSig    = (!isNaN(lastTn)&&!isNaN(lastKj))&&lastTn>lastKj?'bull':'bear';
+
+  // 52w
+  const validHi = hi.filter(v=>v), validLo = lo.filter(v=>v);
+  const w52h = Math.max(...validHi), w52l = Math.min(...validLo);
+  const rangePos = w52h>w52l ? +((price-w52l)/(w52h-w52l)*100).toFixed(1) : 50;
+
+  // Volatility
+  const rets = cl.slice(1).map((v,i)=> isNaN(cl[i])||cl[i]===0?NaN:(v-cl[i])/cl[i]);
+  const validR = rets.filter(v=>!isNaN(v));
+  const avgR = validR.reduce((a,b)=>a+b,0)/validR.length;
+  const vol  = Math.sqrt(validR.reduce((a,b)=>a+(b-avgR)**2,0)/validR.length)*Math.sqrt(252)*100;
+  const beta = meta.beta||1.0;
+
+  // Risk
+  const risk = riskScore(price,ma50,ma100,ma250,beta,w52h,w52l,vol);
+
+  // Chart series (last 120 points)
+  const slice = i => ts.slice(-120).map((t,j)=>{
+    const v = i[i.length-120+j];
+    return isNaN(v)?null:{time:t, value:+v.toFixed(4)};
+  }).filter(Boolean);
+
+  const ohlc = ts.slice(-120).map((t,j)=>{
+    const idx = cl.length-120+j;
+    if(idx<0||isNaN(cl[idx])) return null;
+    return {time:t,open:+op[idx].toFixed(4),high:+hi[idx].toFixed(4),
+            low:+lo[idx].toFixed(4),close:+cl[idx].toFixed(4)};
+  }).filter(Boolean);
+
+  // Fetch news (best effort)
+  let news = [];
+  try {
+    const nu = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&quotesCount=0&newsCount=4`;
+    const nd = await fetchJson(nu, 6000);
+    if (nd?.news) news = nd.news.slice(0,3).map(n=>({
+      title:n.title, link:n.link, publisher:n.publisher,
+      date: n.providerPublishTime ? new Date(n.providerPublishTime*1000).toLocaleDateString('ko-KR') : '',
+    }));
+  } catch {}
+
+  return {
+    ticker, price:+price.toFixed(4), chgPct:+chgPct.toFixed(2),
+    ma:{v50:isNaN(ma50)?null:+ma50.toFixed(2), v100:isNaN(ma100)?null:+ma100.toFixed(2),
+        v250:isNaN(ma250)?null:+ma250.toFixed(2),
+        p50:pct(ma50), p100:pct(ma100), p250:pct(ma250),
+        s50:sig(ma50), s100:sig(ma100), s250:sig(ma250),
+        cross50_100, cross50_250},
+    ichi:{tn:isNaN(lastTn)?null:+lastTn.toFixed(2), kj:isNaN(lastKj)?null:+lastKj.toFixed(2),
+          sa:isNaN(lastSa)?null:+lastSa.toFixed(2), sb:isNaN(lastSb)?null:+lastSb.toFixed(2),
+          cloudPos, tkSig},
+    levels:{w52h:+w52h.toFixed(2), w52l:+w52l.toFixed(2),
+            vsHigh:+((price-w52h)/w52h*100).toFixed(1), rangePos},
+    risk:{score:risk, beta:+beta.toFixed(2), vol:+vol.toFixed(1)},
+    chart:{ohlc, ma50:slice(ma50v), ma100:slice(ma100v), ma250:slice(ma250v),
+           tn:slice(tn), kj:slice(kj)},
+    news,
+  };
+}
+
+// ════════════════════════════════════════
+//  Main Load
+// ════════════════════════════════════════
+async function startLoad() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  document.getElementById('loading').style.display='flex';
+  document.getElementById('app').style.display='none';
+  setLoad(0,'환율 조회 중...');
+  RESULTS = {};
+
+  await fetchKRW();
+
+  const total = PORTFOLIO.length;
+  let done = 0;
+
+  // Fetch in parallel batches of 4
+  for (let i=0;i<total;i+=4) {
+    const batch = PORTFOLIO.slice(i, i+4);
+    await Promise.all(batch.map(async p => {
+      setLoad(Math.round(done/total*90), `${p.name} 조회 중...`);
+      const r = await fetchTicker(p.ticker);
+      RESULTS[p.ticker] = r;
+      done++;
+      setLoad(Math.round(done/total*90), `${p.name} 완료`);
+    }));
+  }
+
+  setLoad(98,'화면 그리는 중...');
+  renderAll();
+  setLoad(100,'완료');
+  setTimeout(()=>{
+    document.getElementById('loading').style.display='none';
+    document.getElementById('app').style.display='';
+  },300);
+  document.getElementById('updated-time').textContent = '업데이트: '+new Date().toLocaleTimeString('ko-KR');
+  btn.disabled = false;
+}
+
+function setLoad(pct, msg) {
+  document.getElementById('lbar').style.width = pct+'%';
+  document.getElementById('lstatus').textContent = msg;
+}
+
+// ════════════════════════════════════════
+//  Render Dashboard
+// ════════════════════════════════════════
+function renderAll() {
+  renderAlerts();
+  renderSummary();
+  renderTable();
+}
+
+function renderAlerts() {
+  let html = '';
+  let errCount = 0;
+  PORTFOLIO.forEach(p => {
+    const r = RESULTS[p.ticker];
+    if (!r) { errCount++; return; }
+    const ma=r.ma, ichi=r.ichi, lv=r.levels;
+    if (ma.cross50_100==='golden') html+=`<span class="pill gc">🔆 ${p.ticker} 골든크로스(50/100)</span>`;
+    if (ma.cross50_100==='death')  html+=`<span class="pill dc">💀 ${p.ticker} 데드크로스(50/100)</span>`;
+    if (ma.cross50_250==='golden') html+=`<span class="pill gc">🔆 ${p.ticker} 골든크로스(50/250)</span>`;
+    if (ma.cross50_250==='death')  html+=`<span class="pill dc">💀 ${p.ticker} 데드크로스(50/250)</span>`;
+    if (ichi.cloudPos==='a'&&ichi.tkSig==='bull') html+=`<span class="pill ca">☁↑ ${p.ticker} 구름위 강세</span>`;
+    if (ichi.cloudPos==='b') html+=`<span class="pill cb">☁↓ ${p.ticker} 구름 아래</span>`;
+    if (lv.rangePos>=90) html+=`<span class="pill nh">⚡ ${p.ticker} 52주 고점 ${lv.rangePos}%</span>`;
+  });
+  if (errCount) html+=`<span class="pill err">⚠ ${errCount}개 종목 조회 실패</span>`;
+  const el = document.getElementById('alerts');
+  el.innerHTML = html||'<span style="font-size:11px;color:var(--t3);padding-top:2px">신규 신호 없음</span>';
+}
+
+function renderSummary() {
+  // Estimate total KRW value
+  let totalKRW=0, successCount=0, failCount=0;
+  PORTFOLIO.forEach(p=>{
+    const r=RESULTS[p.ticker];
+    if (!r) { failCount++; return; }
+    totalKRW += p.shares * r.price * KRW_RATE;
+    successCount++;
+  });
+
+  const highRisk = PORTFOLIO.filter(p=>RESULTS[p.ticker]?.risk?.score>=70).length;
+  const alerts   = PORTFOLIO.filter(p=>{
+    const r=RESULTS[p.ticker]; if(!r)return false;
+    return r.ma.cross50_100||r.ma.cross50_250||r.ichi.cloudPos==='b';
+  }).length;
+
+  document.getElementById('summary').innerHTML=`
+    <div class="sumcard">
+      <div class="sumlbl">추정 총평가액</div>
+      <div class="sumval" style="font-size:14px">₩${Math.round(totalKRW).toLocaleString('ko')}</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px">환율 ₩${Math.round(KRW_RATE).toLocaleString()}</div>
+    </div>
+    <div class="sumcard">
+      <div class="sumlbl">조회 종목</div>
+      <div class="sumval">${successCount}<span style="font-size:12px;color:var(--t3)"> / ${PORTFOLIO.length}</span></div>
+    </div>
+    <div class="sumcard">
+      <div class="sumlbl">고위험 종목</div>
+      <div class="sumval" style="color:${highRisk>0?'var(--red)':'var(--t1)'}">${highRisk}</div>
+    </div>
+    <div class="sumcard">
+      <div class="sumlbl">주요 신호</div>
+      <div class="sumval" style="color:${alerts>0?'var(--amber)':'var(--t1)'}">${alerts}건</div>
+    </div>`;
+}
+
+function sigHtml(s, pct) {
+  const txt = pct!=null ? (pct>0?'+':'')+pct+'%' : 'N/A';
+  return `<span class="sig ${s||'x'}">${s==='a'?'↑':s==='b'?'↓':'≈'} ${txt}</span>`;
+}
+
+function renderTable() {
+  let html='';
+  PORTFOLIO.forEach(p=>{
+    const r=RESULTS[p.ticker];
+    const col=COL[p.ticker];
+    if (!r) {
+      html+=`<tr><td><div class="tk-row">
+        <div class="tk-dot" style="background:${col}"></div>
+        <div><div class="tk-name">${p.ticker}</div><div class="tk-sub">${p.name}</div></div>
+      </div></td>
+      <td colspan="8" style="color:var(--t3);font-size:11px;font-family:var(--mono)">조회 실패</td></tr>`;
+      return;
+    }
+    const chgC = r.chgPct>=0?'var(--green)':'var(--red)';
+    const cloudMap={'a':'a','i':'i','b':'b','x':'i'};
+    const cloudTxt={'a':'↑ 구름위','i':'≈ 구름내','b':'↓ 구름아래','x':'?'};
+    const tkC = r.ichi.tkSig==='bull'?'var(--green)':'var(--red)';
+    const rc = r.risk.score<35?'l':r.risk.score<65?'m':'h';
+
+    html+=`<tr onclick="openDetail('${p.ticker}')">
+      <td><div class="tk-row">
+        <div class="tk-dot" style="background:${col};box-shadow:0 0 5px ${col}55"></div>
+        <div><div class="tk-name">${p.ticker}</div><div class="tk-sub">${p.name}</div></div>
+      </div></td>
+      <td>
+        <div class="price-v">$${r.price.toFixed(2)}</div>
+        <div class="price-c" style="color:${chgC}">${r.chgPct>=0?'+':''}${r.chgPct.toFixed(2)}%</div>
+      </td>
+      <td>${sigHtml(r.ma.s50,r.ma.p50)}</td>
+      <td>${sigHtml(r.ma.s100,r.ma.p100)}</td>
+      <td>${sigHtml(r.ma.s250,r.ma.p250)}</td>
+      <td><span class="cloud ${cloudMap[r.ichi.cloudPos]}">${cloudTxt[r.ichi.cloudPos]}</span></td>
+      <td style="font-family:var(--mono);font-size:11px;color:${tkC}">
+        ${r.ichi.tkSig==='bull'?'↑ 강세':'↓ 약세'}
+      </td>
+      <td>
+        <div class="rbar"><div class="rbar-fill" style="width:${r.levels.rangePos}%"></div></div>
+        <div style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px">
+          ${r.levels.rangePos}% · ${r.levels.vsHigh}%ATH
+        </div>
+      </td>
+      <td><span class="rscore ${rc}">${r.risk.score}</span></td>
+    </tr>`;
+  });
+  document.getElementById('tbody').innerHTML = html;
+}
+
+// ════════════════════════════════════════
+//  Detail Panel
+// ════════════════════════════════════════
+function openDetail(ticker) {
+  const r = RESULTS[ticker];
+  const p = PORTFOLIO.find(x=>x.ticker===ticker);
+  if (!r) return;
+  document.getElementById('detail').style.display='';
+  document.body.style.overflow='hidden';
+
+  const col  = COL[ticker];
+  const chgC = r.chgPct>=0?'var(--green)':'var(--red)';
+  document.getElementById('d-tk').textContent = ticker;
+  document.getElementById('d-tk').style.color = col;
+  document.getElementById('d-name').textContent = p?.name||'';
+  document.getElementById('d-price').textContent = `$${r.price.toFixed(2)}`;
+  document.getElementById('d-chg').textContent   = ` ${r.chgPct>=0?'+':''}${r.chgPct.toFixed(2)}%`;
+  document.getElementById('d-chg').style.color   = chgC;
+
+  buildChart(r, col);
+  buildInfo(r);
+}
+
+function closeDetail() {
+  document.getElementById('detail').style.display='none';
+  document.body.style.overflow='';
+  if (lwChart) { lwChart.remove(); lwChart=null; }
+}
+
+function buildChart(r, col) {
+  const box = document.getElementById('chart-box');
+  box.innerHTML='';
+  if (lwChart) { lwChart.remove(); lwChart=null; }
+
+  lwChart = LightweightCharts.createChart(box,{
+    width:box.clientWidth, height:400,
+    layout:{background:{color:'#0d1117'},textColor:'#8b949e'},
+    grid:{vertLines:{color:'#1c2230'},horzLines:{color:'#1c2230'}},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+    rightPriceScale:{borderColor:'#1c2230'},
+    timeScale:{borderColor:'#1c2230',timeVisible:true},
+  });
+
+  const ch = r.chart;
+
+  // Cloud (Senkou lines)
+  if (ch.ohlc?.length && r.ichi.sa && r.ichi.sb) {
+    // Simplified cloud: two area series
+    [
+      {data:ch.ohlc.map(p=>({time:p.time,value:Math.max(r.ichi.sa,r.ichi.sb)})),
+       top:'rgba(88,166,255,0.15)',bot:'rgba(88,166,255,0)'},
+    ].forEach(cfg=>{
+      const s=lwChart.addAreaSeries({lineColor:'transparent',topColor:cfg.top,bottomColor:cfg.bot,
+        priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:false});
+      // constant cloud level (simplified)
+    });
+  }
+
+  // Candlestick
+  const cs = lwChart.addCandlestickSeries({
+    upColor:'#3fb950',downColor:'#f85149',
+    borderUpColor:'#3fb950',borderDownColor:'#f85149',
+    wickUpColor:'#3fb950',wickDownColor:'#f85149',
+  });
+  if (ch.ohlc?.length) cs.setData(ch.ohlc);
+
+  // MAs
+  [{k:'ma50',c:'#58a6ff',w:1.5},{k:'ma100',c:'#d29922',w:1.5},{k:'ma250',c:'#f85149',w:2}]
+    .forEach(cfg=>{
+      if (!ch[cfg.k]?.length) return;
+      const s=lwChart.addLineSeries({color:cfg.c,lineWidth:cfg.w,
+        priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:true});
+      s.setData(ch[cfg.k]);
+    });
+
+  // Ichimoku lines
+  [{k:'tn',c:'#bc8cff'},{k:'kj',c:'#fb923c'}].forEach(cfg=>{
+    if (!ch[cfg.k]?.length) return;
+    const s=lwChart.addLineSeries({color:cfg.c,lineWidth:1,
+      lineStyle:LightweightCharts.LineStyle.Dashed,
+      priceLineVisible:false,lastValueVisible:false});
+    s.setData(ch[cfg.k]);
+  });
+
+  lwChart.timeScale().fitContent();
+  window.addEventListener('resize',()=>{ if(lwChart) lwChart.resize(box.clientWidth,400); });
+}
+
+function buildInfo(r) {
+  const ma=r.ma, ichi=r.ichi, lv=r.levels, rsk=r.risk;
+  const cloudTxt={'a':'↑ 구름 위 (강세)','i':'≈ 구름 내 (중립)','b':'↓ 구름 아래 (약세)','x':'?'};
+  const cloudC={'a':'var(--green)','i':'var(--amber)','b':'var(--red)','x':'var(--t3)'};
+  const macross = (c,label) => c?`<span style="color:${c==='golden'?'var(--green)':'var(--red)'}">${c==='golden'?'🔆':'💀'} ${label}</span>`:'<span style="color:var(--t3)">—</span>';
+
+  const newsHtml = r.news?.length
+    ? r.news.map((n,i)=>`
+        <a class="news-a" href="${n.link}" target="_blank">
+          <div class="ntitle">${i===0?'🔥 ':''}${n.title}</div>
+          <div class="nmeta">${n.publisher||''} · ${n.date||''}</div>
+        </a>`).join('')
+    : '<div class="err-row">뉴스 없음</div>';
+
+  document.getElementById('dinfo').innerHTML=`
+    <div class="sec">일목균형표</div>
+    <div class="sc" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:6px">
+      <div style="font-size:15px;font-weight:600;color:${cloudC[ichi.cloudPos]}">${cloudTxt[ichi.cloudPos]}</div>
+      <div style="font-size:11px;color:${ichi.tkSig==='bull'?'var(--green)':'var(--red)'};font-family:var(--mono);margin-top:4px">
+        전환선 ${ichi.tkSig==='bull'?'>':'<'} 기준선 (${ichi.tkSig==='bull'?'강세':'약세'})
+      </div>
+    </div>
+
+    <div class="sec">이동평균</div>
+    <div class="sgrid">
+      <div class="sc"><div class="slbl">MA50 대비</div>
+        <div class="sval" style="color:${ma.s50==='a'?'var(--green)':ma.s50==='b'?'var(--red)':'var(--amber)'}">
+          ${ma.p50!=null?(ma.p50>0?'+':'')+ma.p50+'%':'N/A'}</div></div>
+      <div class="sc"><div class="slbl">MA100 대비</div>
+        <div class="sval" style="color:${ma.s100==='a'?'var(--green)':ma.s100==='b'?'var(--red)':'var(--amber)'}">
+          ${ma.p100!=null?(ma.p100>0?'+':'')+ma.p100+'%':'N/A'}</div></div>
+      <div class="sc"><div class="slbl">MA250 대비</div>
+        <div class="sval" style="color:${ma.s250==='a'?'var(--green)':ma.s250==='b'?'var(--red)':'var(--amber)'}">
+          ${ma.p250!=null?(ma.p250>0?'+':'')+ma.p250+'%':'N/A'}</div></div>
+      <div class="sc"><div class="slbl">52주 위치</div>
+        <div class="sval" style="color:${lv.rangePos>80?'var(--amber)':lv.rangePos<20?'var(--blue)':'var(--t1)'}">${lv.rangePos}%</div>
+        <div style="font-size:10px;color:var(--t3);font-family:var(--mono)">ATH比 ${lv.vsHigh}%</div>
+      </div>
+    </div>
+    <div class="sc" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;margin-bottom:4px">
+      <div class="slbl">MA 교차 (최근 10일)</div>
+      <div style="font-size:12px;margin-top:3px">
+        50/100: ${macross(ma.cross50_100,'골든크로스')}&nbsp;&nbsp;
+        50/250: ${macross(ma.cross50_250,'골든크로스')}
+      </div>
+    </div>
+
+    <div class="sec">리스크</div>
+    <div class="sgrid">
+      <div class="sc"><div class="slbl">위험도</div>
+        <div class="sval" style="color:${rsk.score>=70?'var(--red)':rsk.score>=45?'var(--amber)':'var(--green)'}">${rsk.score}/100</div></div>
+      <div class="sc"><div class="slbl">베타 / 연변동성</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--t2);margin-top:3px;line-height:1.8">β ${rsk.beta}<br>σ ${rsk.vol}%</div></div>
+    </div>
+
+    <div class="sec">최신 뉴스</div>
+    ${newsHtml}
+  `;
+}
+
+// ════════════════════════════════════════
+//  Init
+// ════════════════════════════════════════
+// Init handled by PIN logic above
+</script>
+</body>
+</html>
