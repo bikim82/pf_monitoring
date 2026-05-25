@@ -2,7 +2,7 @@ name: 아이 PF 모닝 알람
 
 on:
   schedule:
-    # 매일 오전 7시 KST = UTC 22:00 (전날)
+    # 매일 오전 7시 KST = UTC 21:30 (전날)
     - cron: '30 21 * * *'
   # 수동 실행 (테스트용)
   workflow_dispatch:
