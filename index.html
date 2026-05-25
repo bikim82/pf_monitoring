@@ -713,61 +713,48 @@ function buildChart(r,col){
 
 // ── Static signal cards ─────────────────────
 function buildInfoStatic(r){
-  const ma=r.ma,ic=r.ichi,lv=r.lv,rk=r.risk;
-  const ctxt={a:'↑ 구름 위 (강세)',i:'≈ 구름 내 (중립)',b:'↓ 구름 아래 (약세)',x:'?'};
-  const ccol={a:'var(--green)',i:'var(--amber)',b:'var(--red)',x:'var(--t3)'};
-  const crossHtml=(c,lbl)=>c?`<span style="color:${c==='golden'?'var(--green)':'var(--red)'}">${c==='golden'?'🔆':'💀'} ${lbl}</span>`:'<span style="color:var(--t3)">—</span>';
-
-  document.getElementById('dinfo').innerHTML=`
-    <div class="dsec">일목균형표</div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:4px">
-      <div style="font-size:14px;font-weight:600;color:${ccol[ic.cp]}">${ctxt[ic.cp]}</div>
-      <div style="font-size:10.5px;color:${ic.tk==='bull'?'var(--green)':'var(--red)'};font-family:var(--mono);margin-top:3px">
-        전환선 ${ic.tk==='bull'?'>':'<'} 기준선 (${ic.tk==='bull'?'강세':'약세'})
-        ${ic.tn!=null?`· 전환 ${r.krw?'₩'+Math.round(ic.tn).toLocaleString('ko'):'$'+ic.tn}`:''}
-        ${ic.kj!=null?`/ 기준 ${r.krw?'₩'+Math.round(ic.kj).toLocaleString('ko'):'$'+ic.kj}`:''}
-      </div>
-    </div>
-
-    <div class="dsec">이동평균</div>
-    <div class="sgrid">
-      <div class="scard"><div class="cardlbl">MA50 대비</div>
-        <div class="cardval" style="color:${ma.s50==='a'?'var(--green)':ma.s50==='b'?'var(--red)':'var(--amber)'}">
-          ${ma.p50!=null?(ma.p50>0?'+':'')+ma.p50+'%':'N/A'}</div></div>
-      <div class="scard"><div class="cardlbl">MA100 대비</div>
-        <div class="cardval" style="color:${ma.s100==='a'?'var(--green)':ma.s100==='b'?'var(--red)':'var(--amber)'}">
-          ${ma.p100!=null?(ma.p100>0?'+':'')+ma.p100+'%':'N/A'}</div></div>
-      <div class="scard"><div class="cardlbl">MA250 대비</div>
-        <div class="cardval" style="color:${ma.s250==='a'?'var(--green)':ma.s250==='b'?'var(--red)':'var(--amber)'}">
-          ${ma.p250!=null?(ma.p250>0?'+':'')+ma.p250+'%':'N/A'}</div></div>
-      <div class="scard"><div class="cardlbl">52주 위치</div>
-        <div class="cardval" style="color:${lv.rp>80?'var(--amber)':lv.rp<20?'var(--blue)':'var(--t1)'}">${lv.rp}%</div>
-        <div style="font-size:9.5px;color:var(--t3);font-family:var(--mono)">ATH比 ${lv.vsH}%</div>
-      </div>
-      <div class="scard"><div class="cardlbl">MA 교차 50/100</div>
-        <div style="font-size:11px;margin-top:3px">${crossHtml(ma.c5100,'골든크로스')}</div></div>
-      <div class="scard"><div class="cardlbl">MA 교차 50/250</div>
-        <div style="font-size:11px;margin-top:3px">${crossHtml(ma.c5250,'골든크로스')}</div></div>
-    </div>
-
-    <div class="dsec">리스크</div>
-    <div class="sgrid">
-      <div class="scard"><div class="cardlbl">위험도</div>
-        <div class="cardval" style="color:${rk.score>=70?'var(--red)':rk.score>=45?'var(--amber)':'var(--green)'}">${rk.score}/100</div></div>
-      <div class="scard"><div class="cardlbl">베타 / 연변동성</div>
-        <div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">β ${rk.beta}<br>σ ${rk.vol}%</div></div>
-    </div>
-
-    <div class="dsec">어닝 / 목표주가 / IB 동향</div>
-    <div id="det-async" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0">
-      <span class="spinner"></span> 데이터 로딩 중...
-    </div>
-
-    <div class="dsec">최신 뉴스</div>
-    <div id="det-news" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0">
-      <span class="spinner"></span> 뉴스 불러오는 중...
-    </div>
-  `;
+  var ma=r.ma, ic=r.ichi, lv=r.lv, rk=r.risk;
+  var cloudTxt={a:'\u2191 \uad6c\ub984 \uc704 (\uac15\uc138)',i:'\u2248 \uad6c\ub984 \ub0b4 (\uc911\ub9bd)',b:'\u2193 \uad6c\ub984 \uc544\ub798 (\uc57d\uc138)',x:'?'};
+  var cloudCol={a:'var(--green)',i:'var(--amber)',b:'var(--red)',x:'var(--t3)'};
+  function sigC(s){ return s==='a'?'var(--green)':s==='b'?'var(--red)':'var(--amber)'; }
+  function pStr(p){ return p!=null?(p>0?'+':'')+p+'%':'N/A'; }
+  function cHtml(crs){
+    if(!crs) return '<span style="color:var(--t3)">\u2014</span>';
+    return '<span style="color:'+(crs==='golden'?'var(--green)':'var(--red)')+'">'+
+      (crs==='golden'?'\ud83d\udd06 \uace8\ub4e0\ud06c\ub85c\uc2a4':'\ud83d\udc80 \ub370\ub4dc\ud06c\ub85c\uc2a4')+'</span>';
+  }
+  function card(lbl,col,val,sub){
+    return '<div class="scard"><div class="cardlbl">'+lbl+'</div>'+
+      '<div class="cardval" style="color:'+col+'">'+val+'</div>'+
+      (sub?'<div style="font-size:9.5px;color:var(--t3);font-family:var(--mono)">'+sub+'</div>':'')+
+      '</div>';
+  }
+  var h='';
+  h+='<div class="dsec">\uc77c\ubaa9\uade0\ud615\ud45c</div>';
+  h+='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:4px">';
+  h+='<div style="font-size:14px;font-weight:600;color:'+cloudCol[ic.cp]+'">'+cloudTxt[ic.cp]+'</div>';
+  h+='<div style="font-size:10.5px;color:'+(ic.tk==='bull'?'var(--green)':'var(--red)')+';font-family:var(--mono);margin-top:3px">';
+  h+='\uc804\ud658\uc120 '+(ic.tk==='bull'?'>':'<')+' \uae30\uc900\uc120 ('+(ic.tk==='bull'?'\uac15\uc138':'\uc57d\uc138')+')';
+  if(ic.tn) h+=' \u00b7 \uc804\ud658 '+(r.krw?'\u20a9'+Math.round(ic.tn).toLocaleString('ko'):'$'+ic.tn);
+  if(ic.kj) h+=' / \uae30\uc900 '+(r.krw?'\u20a9'+Math.round(ic.kj).toLocaleString('ko'):'$'+ic.kj);
+  h+='</div></div>';
+  h+='<div class="dsec">\uc774\ub3d9\ud3c9\uade0</div><div class="sgrid">';
+  h+=card('MA50 \ub300\ube44', sigC(ma.s50),  pStr(ma.p50));
+  h+=card('MA100 \ub300\ube44',sigC(ma.s100), pStr(ma.p100));
+  h+=card('MA250 \ub300\ube44',sigC(ma.s250), pStr(ma.p250));
+  h+=card('52\uc8fc \uc704\uce58', lv.rp>80?'var(--amber)':lv.rp<20?'var(--blue)':'var(--t1)', lv.rp+'%', 'ATH\u6bd4 '+lv.vsH+'%');
+  h+='<div class="scard"><div class="cardlbl">MA \uad50\ucc28 50/100</div><div style="margin-top:3px;font-size:11px">'+cHtml(ma.c5100)+'</div></div>';
+  h+='<div class="scard"><div class="cardlbl">MA \uad50\ucc28 50/250</div><div style="margin-top:3px;font-size:11px">'+cHtml(ma.c5250)+'</div></div>';
+  h+='</div>';
+  h+='<div class="dsec">\ub9ac\uc2a4\ud06c</div><div class="sgrid">';
+  h+=card('\uc704\ud5d8\ub3c4', rk.score>=70?'var(--red)':rk.score>=45?'var(--amber)':'var(--green)', rk.score+'/100');
+  h+='<div class="scard"><div class="cardlbl">\ubca0\ud0c0 / \uc5f0\ubcc0\ub3d9\uc131</div>';
+  h+='<div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">\u03b2 '+rk.beta+'<br>\u03c3 '+rk.vol+'%</div></div></div>';
+  h+='<div class="dsec">\uc5b4\ub2dd / \ubaa9\ud45c\uc8fc\uac00 / IB \ub3d9\ud5a5</div>';
+  h+='<div id="det-async" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0"><span class="spinner"></span> \ub370\uc774\ud130 \ub85c\ub529 \uc911...</div>';
+  h+='<div class="dsec">\ucd5c\uc2e0 \ub274\uc2a4</div>';
+  h+='<div id="det-news" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0"><span class="spinner"></span> \ub274\uc2a4 \ubd88\ub7ec\uc624\ub294 \uc911...</div>';
+  document.getElementById('dinfo').innerHTML=h;
 }
 
 // ── Async: earnings + IB + news ────────────
