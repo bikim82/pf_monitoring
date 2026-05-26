@@ -168,13 +168,13 @@ def build_msg(results, fx, date_str):
     valid = [r for r in results if r]
     valid.sort(key=lambda r: -(r["s"]*r["price"] if r["krw"] else r["s"]*r["price"]*fx))
     lines.append("📈 *종목 현황 (보유액 순)*")
-    lines.append("`종목        전일   MA50   구름  1주일`")
+    lines.append("`종목        일일    주간   MA50  구름`")
     for r in valid:
         e = "🟢" if r["chg"]>=0 else "🔴"
         ce= CLOUD_E.get(r["cp"],"❓")+("↑"if r["tk"]=="bull"else "↓")
         lines.append(
             f"{e}`{r['t']:<10}` {fp(r['chg'],True):>6} "
-            f"{fp(r['vs50'],True):>6}  {ce}  {fp(r['wk'],True):>6}"
+            f"{fp(r['wk'],True):>6} {fp(r['vs50'],True):>6}  {ce}"
         )
     lines.append("")
 
