@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ELS Monitor</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 :root{
@@ -16,66 +17,79 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--font)}
-
 /* PIN */
 #pin-screen{position:fixed;inset:0;background:var(--bg0);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px}
 .pin-box{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:32px 36px;text-align:center;width:100%;max-width:300px}
 .pin-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:all .15s;display:inline-block;margin:0 5px}
-.pin-dot.filled{background:var(--blue);border-color:var(--blue)}
+.pin-dot.filled{background:var(--amber);border-color:var(--amber)}
 .numkey{padding:13px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--t1);font-family:var(--mono);font-size:17px;font-weight:600;cursor:pointer;transition:all .1s;width:100%}
-.numkey:hover{background:var(--bg2)}
-.numkey:active{transform:scale(.95)}
+.numkey:hover{background:var(--bg2)}.numkey:active{transform:scale(.95)}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
-
 /* Loading */
-#loading{position:fixed;inset:0;background:var(--bg0);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:998;display:none}
+#loading{position:fixed;inset:0;background:var(--bg0);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:998}
 .lbar-wrap{width:260px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin:20px 0 10px}
-.lbar{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:2px;transition:width .3s}
-
+.lbar{height:100%;background:linear-gradient(90deg,var(--amber),var(--purple));border-radius:2px;transition:width .3s}
 /* Header */
 .hdr{padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg1);position:sticky;top:0;z-index:50;gap:8px;flex-wrap:wrap}
 .logo{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
 .logo-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
 .rbtn{padding:5px 13px;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--t2);font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
-.rbtn:hover{background:var(--bg3);color:var(--t1)}
-.rbtn:disabled{opacity:.4}
-
+.rbtn:hover{background:var(--bg3);color:var(--t1)}.rbtn:disabled{opacity:.4}
 /* Tabs */
 .tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg1);overflow-x:auto}
 .tab-btn{padding:10px 16px;background:none;border:none;cursor:pointer;font-family:var(--font);font-size:12px;color:var(--t3);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all .15s}
 .tab-btn.active{color:var(--t1);font-weight:700;border-bottom-color:var(--amber)}
-
 /* Content */
 .content{padding:14px 18px 60px}
-
-/* Section */
-.sec-title{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;margin-top:16px;display:flex;align-items:center;gap:6px}
-
+.sec-title{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;margin-top:16px}
 /* Table */
 .tbl-wrap{background:var(--bg1);border:1px solid var(--border);border-radius:9px;overflow:hidden;overflow-x:auto;margin-bottom:12px}
-table{width:100%;border-collapse:collapse;font-size:12px;min-width:520px}
+table{width:100%;border-collapse:collapse;font-size:12px}
 th{padding:8px 10px;color:var(--t3);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
 th:first-child,th:nth-child(2){text-align:left}
 td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.025);text-align:right;vertical-align:middle}
-td:first-child{text-align:left;font-weight:600}
+td:first-child{text-align:left;position:sticky;left:0;background:var(--bg1);z-index:2}
 td:nth-child(2){text-align:left;color:var(--t3);font-size:11px}
 tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer;transition:background .1s}
+tbody tr:hover{background:var(--bg3)}
+tbody tr:hover td:first-child{background:var(--bg3)}
 .mono{font-family:var(--mono)}
-.pos{color:var(--green)}
-.neg{color:var(--red)}
-.muted{color:var(--t3)}
-
-/* Spark indicator */
-.chg-badge{font-family:var(--mono);font-size:11px;font-weight:600}
-
-/* Grid layout for macro */
-.macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:700px){.macro-grid{grid-template-columns:1fr}}
-
-/* FRED key input */
-.fred-input-wrap{display:flex;gap:6px;align-items:center;margin-bottom:8px;padding:8px 12px;background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.15);border-radius:7px;flex-wrap:wrap}
-.fred-input{background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--t1);font-family:var(--mono);font-size:11px;flex:1;min-width:160px}
-.fred-input:focus{outline:none;border-color:var(--blue)}
+.pos{color:var(--green)}.neg{color:var(--red)}.muted{color:var(--t3)}
+.sig{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--mono)}
+.sig.a{background:rgba(63,185,80,.12);color:var(--green)}
+.sig.b{background:rgba(248,81,73,.12);color:var(--red)}
+.sig.n{background:rgba(210,153,34,.1);color:var(--amber)}
+.cloud{display:inline-flex;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700}
+.cloud.a{background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.2)}
+.cloud.i{background:rgba(210,153,34,.08);color:var(--amber);border:1px solid rgba(210,153,34,.18)}
+.cloud.b{background:rgba(248,81,73,.1);color:var(--red);border:1px solid rgba(248,81,73,.2)}
+.rs{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;font-family:var(--mono);font-weight:700;font-size:11px;border:2px solid}
+.rs.l{background:rgba(63,185,80,.08);color:var(--green);border-color:rgba(63,185,80,.25)}
+.rs.m{background:rgba(210,153,34,.08);color:var(--amber);border-color:rgba(210,153,34,.25)}
+.rs.h{background:rgba(248,81,73,.08);color:var(--red);border-color:rgba(248,81,73,.25)}
+/* Detail overlay */
+.detail{display:none;position:fixed;inset:0;background:var(--bg0);z-index:200;overflow-y:auto}
+.dh{padding:11px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:var(--bg1);position:sticky;top:0;flex-wrap:wrap}
+.back{padding:5px 13px;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--t2);font:600 11px var(--font);cursor:pointer}
+.back:hover{background:var(--bg3);color:var(--t1)}
+.db{display:grid;grid-template-columns:1fr 310px}
+.dchart{padding:14px 18px;border-right:1px solid var(--border)}
+.chart-box{width:100%;height:400px;border-radius:8px;overflow:hidden;background:var(--bg1)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.leg{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--t2)}
+.leg-l{width:12px;height:2px;border-radius:1px}
+.dinfo{padding:14px;overflow-y:auto;max-height:calc(100vh - 60px)}
+.dsec{font-size:9.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1.2px;margin:12px 0 7px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
+.scard{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:8px 10px}
+.cardlbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:2px}
+.cardval{font-size:12.5px;font-weight:600;font-family:var(--mono)}
+/* FRED input */
+.fred-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;padding:7px 10px;background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.15);border-radius:7px;flex-wrap:wrap}
+.fred-inp{background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--t1);font-family:var(--mono);font-size:11px;flex:1;min-width:160px}
+.fred-inp:focus{outline:none;border-color:var(--blue)}
+@media(max-width:700px){.db{grid-template-columns:1fr}.dchart{border-right:none;border-bottom:1px solid var(--border)}.dinfo{max-height:none}}
 </style>
 </head>
 <body>
@@ -121,93 +135,98 @@ tr:last-child td{border-bottom:none}
       <button class="rbtn" id="rbtn" onclick="runLoad()">🔄 새로고침</button>
     </div>
   </div>
-
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('macro',this)">📊 거시지표</button>
+    <button class="tab-btn" onclick="switchTab('indices',this)">📈 주요지수</button>
     <button class="tab-btn" onclick="switchTab('korea',this)">🇰🇷 한국주식</button>
     <button class="tab-btn" onclick="switchTab('global',this)">🌐 글로벌주식</button>
   </div>
+  <div id="tab-macro"   class="content"></div>
+  <div id="tab-indices" class="content" style="display:none"></div>
+  <div id="tab-korea"   class="content" style="display:none"></div>
+  <div id="tab-global"  class="content" style="display:none"></div>
+</div>
 
-  <div id="tab-macro" class="content"></div>
-  <div id="tab-korea" class="content" style="display:none"></div>
-  <div id="tab-global" class="content" style="display:none"></div>
+<!-- Detail -->
+<div id="detail" class="detail">
+  <div class="dh">
+    <button class="back" onclick="closeDet()">← 목록</button>
+    <span id="d-tk" style="font-size:19px;font-weight:700"></span>
+    <span id="d-nm" style="font-size:11px;color:var(--t3)"></span>
+    <span id="d-pr" style="font-size:16px;font-weight:700;font-family:var(--mono)"></span>
+    <span id="d-ch" style="font-size:12px;font-family:var(--mono)"></span>
+  </div>
+  <div class="db">
+    <div class="dchart">
+      <div class="chart-box" id="chart-box"></div>
+      <div class="legend">
+        <div class="leg"><div class="leg-l" style="background:#58a6ff"></div>MA50</div>
+        <div class="leg"><div class="leg-l" style="background:#d29922"></div>MA100</div>
+        <div class="leg"><div class="leg-l" style="background:#f85149"></div>MA250</div>
+        <div class="leg"><div class="leg-l" style="background:#bc8cff"></div>전환선</div>
+        <div class="leg"><div class="leg-l" style="background:#fb923c"></div>기준선</div>
+        <div class="leg"><div class="leg-l" style="background:rgba(38,166,154,.4);height:7px;border-radius:2px"></div>구름</div>
+      </div>
+    </div>
+    <div class="dinfo" id="dinfo"></div>
+  </div>
 </div>
 
 <script>
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
 //  ★ 설정
-// ════════════════════════════════════════
-const PIN = '1104';  // ← 변경
+// ═══════════════════════════════════════
+const PIN = '1234';  // ← PIN 변경
 
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
 //  자산 정의
-// ════════════════════════════════════════
-const INDICES = [
-  {k:'KOSPI200', t:'^KS200',     n:'KOSPI 200',     region:'asia'},
-  {k:'NKY225',   t:'^N225',      n:'Nikkei 225',    region:'asia'},
-  {k:'HSCEI',    t:'^HSCE',      n:'HSCEI',         region:'asia'},
-  {k:'SX5E',     t:'^STOXX50E',  n:'Euro Stoxx 50', region:'eu'},
-  {k:'SPX',      t:'^GSPC',      n:'S&P 500',       region:'us'},
-  {k:'MXWO',     t:'URTH',       n:'MSCI World ETF',region:'us'},
-  {k:'MXEF',     t:'EEM',        n:'MSCI EM ETF',   region:'us'},
+// ═══════════════════════════════════════
+const INDICES_LIST = [
+  {k:'^KS200',    n:'KOSPI 200',      cat:'asia'},
+  {k:'^N225',     n:'Nikkei 225',     cat:'asia'},
+  {k:'^HSCE',     n:'HSCEI',          cat:'asia'},
+  {k:'^STOXX50E', n:'Euro Stoxx 50',  cat:'eu'},
+  {k:'^GSPC',     n:'S&P 500',        cat:'us'},
+  {k:'URTH',      n:'MSCI World ETF', cat:'us'},
+  {k:'EEM',       n:'MSCI EM ETF',    cat:'us'},
+  {k:'ES=F',      n:'S&P Fut (ES1)',  cat:'fut'},
+  {k:'FESX=F',    n:'EuroStoxx Fut',  cat:'fut'},
+  {k:'NIY=F',     n:'Nikkei Fut',     cat:'fut'},
 ];
-const FUTURES = [
-  {k:'ES1',   t:'ES=F',   n:'S&P 500 Fut'},
-  {k:'FESX1', t:'FESX=F', n:'EuroStoxx Fut'},
-  {k:'NIY1',  t:'NIY=F',  n:'Nikkei Fut'},
+const FX_LIST = [
+  {k:'KRW=X',    n:'USD/KRW'},  {k:'JPYKRW=X', n:'JPY/KRW'},
+  {k:'EURKRW=X', n:'EUR/KRW'},  {k:'EURUSD=X', n:'EUR/USD'},
+  {k:'JPY=X',    n:'USD/JPY'},  {k:'CNH=X',    n:'USD/CNH'},
+  {k:'DX-Y.NYB', n:'DXY'},
 ];
-const FX = [
-  {k:'USDKRW', t:'KRW=X',      n:'USD/KRW'},
-  {k:'JPYKRW', t:'JPYKRW=X',   n:'JPY/KRW'},
-  {k:'EURKRW', t:'EURKRW=X',   n:'EUR/KRW'},
-  {k:'EURUSD', t:'EURUSD=X',   n:'EUR/USD'},
-  {k:'USDJPY', t:'JPY=X',      n:'USD/JPY'},
-  {k:'USDCNH', t:'CNH=X',      n:'USD/CNH'},
-  {k:'DXY',    t:'DX-Y.NYB',   n:'DXY Index'},
-];
-// 금리: Yahoo Finance 티커 (종가 기준 수익률)
 const RATES_YF = [
-  {k:'UST10Y',  t:'^TNX',         n:'UST 10Y',   tenor:'10Y', country:'US'},
-  {k:'UST30Y',  t:'^TYX',         n:'UST 30Y',   tenor:'30Y', country:'US'},
-  {k:'KTB10Y',  t:'KR10YT=RR',    n:'KTB 10Y',   tenor:'10Y', country:'KR'},
-  {k:'JGB10Y',  t:'JP10YT=RR',    n:'JGB 10Y',   tenor:'10Y', country:'JP'},
-  {k:'BUND10Y', t:'DE10YT=RR',    n:'Bund 10Y',  tenor:'10Y', country:'DE'},
-  {k:'GILT10Y', t:'GB10YT=RR',    n:'Gilt 10Y',  tenor:'10Y', country:'GB'},
-  {k:'OAT10Y',  t:'FR10YT=RR',    n:'OAT 10Y',   tenor:'10Y', country:'FR'},
+  {k:'^TNX', n:'UST 10Y'}, {k:'^TYX', n:'UST 30Y'},
+  {k:'KR10YT=RR', n:'KTB 10Y'}, {k:'JP10YT=RR', n:'JGB 10Y'},
+  {k:'DE10YT=RR', n:'Bund 10Y'},{k:'GB10YT=RR', n:'Gilt 10Y'},
+  {k:'FR10YT=RR', n:'OAT 10Y'},
 ];
-// FRED 금리 (API 키 입력 시)
 const RATES_FRED = [
-  {k:'UST2Y',   s:'DGS2',                n:'UST 2Y',  country:'US'},
-  {k:'UST10Y',  s:'DGS10',               n:'UST 10Y', country:'US'},
-  {k:'UST30Y',  s:'DGS30',               n:'UST 30Y', country:'US'},
-  {k:'KTB10Y',  s:'IRLTLT01KRM156N',     n:'KTB 10Y', country:'KR'},
-  {k:'JGB10Y',  s:'IRLTLT01JPM156N',     n:'JGB 10Y', country:'JP'},
-  {k:'BUND10Y', s:'IRLTLT01DEM156N',     n:'Bund 10Y',country:'DE'},
-  {k:'GILT10Y', s:'IRLTLT01GBM156N',     n:'Gilt 10Y',country:'GB'},
-  {k:'OAT10Y',  s:'IRLTLT01FRM156N',     n:'OAT 10Y', country:'FR'},
+  {k:'UST2Y', s:'DGS2', n:'UST 2Y'},   {k:'UST10Y', s:'DGS10', n:'UST 10Y'},
+  {k:'UST30Y', s:'DGS30', n:'UST 30Y'},{k:'KTB10Y', s:'IRLTLT01KRM156N', n:'KTB 10Y'},
+  {k:'JGB10Y', s:'IRLTLT01JPM156N', n:'JGB 10Y'},
+  {k:'BUND10Y',s:'IRLTLT01DEM156N', n:'Bund 10Y'},
+  {k:'GILT10Y',s:'IRLTLT01GBM156N', n:'Gilt 10Y'},
+  {k:'OAT10Y', s:'IRLTLT01FRM156N', n:'OAT 10Y'},
 ];
-const COMM = [
-  {k:'WTI',   t:'CL=F',    n:'WTI (CL1)'},
-  {k:'BRENT', t:'BZ=F',    n:'Brent (CO1)'},
-  {k:'GOLD',  t:'GC=F',    n:'Gold (XAU)'},
-  {k:'BTC',   t:'BTC-USD', n:'Bitcoin'},
+const COMM_LIST = [
+  {k:'CL=F', n:'WTI (CL1)'}, {k:'BZ=F', n:'Brent (CO1)'},
+  {k:'GC=F', n:'Gold (XAU)'},{k:'BTC-USD', n:'Bitcoin'},
 ];
-const VOL = [
-  {k:'VIX',    t:'^VIX',   n:'VIX'},
-  {k:'VIX3M',  t:'^VIX3M', n:'VIX3M'},
-  {k:'VIX6M',  t:'^VIX6M', n:'VIX6M'},
-  {k:'VIX1Y',  t:'^VIX1Y', n:'VIX1Y'},
-  {k:'VKOSPI', t:'^VKOSPI',n:'VKOSPI'},
+const VOL_LIST = [
+  {k:'^VIX', n:'VIX'},    {k:'^VIX3M', n:'VIX3M'},
+  {k:'^VIX6M', n:'VIX6M'},{k:'^VIX1Y', n:'VIX1Y'},
+  {k:'^VKOSPI', n:'VKOSPI'},
 ];
 const KR_STOCKS = [
-  {k:'005930.KS', n:'삼성전자'},
-  {k:'000660.KS', n:'SK하이닉스'},
-  {k:'005380.KS', n:'현대차'},
-  {k:'066570.KS', n:'LG전자'},
-  {k:'051910.KS', n:'LG화학'},
-  {k:'005490.KS', n:'포스코홀딩스'},
-  {k:'329180.KS', n:'HD현대중공업'},
-  {k:'016360.KS', n:'삼성증권'},
+  {k:'005930.KS', n:'삼성전자'},   {k:'000660.KS', n:'SK하이닉스'},
+  {k:'005380.KS', n:'현대차'},     {k:'066570.KS', n:'LG전자'},
+  {k:'051910.KS', n:'LG화학'},     {k:'005490.KS', n:'포스코홀딩스'},
+  {k:'329180.KS', n:'HD현대중공업'},{k:'016360.KS', n:'삼성증권'},
 ];
 const GL_STOCKS = [
   {k:'NVDA', n:'NVIDIA'},    {k:'AAPL', n:'Apple'},
@@ -222,329 +241,507 @@ const GL_STOCKS = [
   {k:'GS',   n:'Goldman Sachs'},
 ];
 
-// ════════════════════════════════════════
-//  State
-// ════════════════════════════════════════
-const D = {};  // price data store
-let fredKey = localStorage.getItem('els_fred_key') || '';
+const COLS=[
+  '#58a6ff','#3fb950','#bc8cff','#d29922','#f85149',
+  '#39d353','#fb923c','#ec4899','#60a5fa','#34d399',
+  '#a78bfa','#fbbf24','#f97316','#06b6d4','#84cc16',
+  '#e879f9','#38bdf8','#4ade80','#facc15','#f87171',
+  '#c084fc','#fb923c','#a3e635','#67e8f9',
+];
+const colFor = (k,i) => COLS[(i||0) % COLS.length];
 
-// ════════════════════════════════════════
+let D={}, lwChart=null, fredKey=localStorage.getItem('els_fred')|| '';
+
+// ═══════════════════════════════════════
 //  PIN
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
 let pv='';
 function pi(n){if(pv.length>=4)return;pv+=n;ud();if(pv.length===4)setTimeout(ps,150);}
 function pc(){pv=pv.slice(0,-1);ud();document.getElementById('pin-err').textContent='';}
 function ud(){document.querySelectorAll('.pin-dot').forEach((d,i)=>d.classList.toggle('filled',i<pv.length));}
 function ps(){
-  if(pv===PIN){
-    sessionStorage.setItem('els_ok','1');
-    document.getElementById('pin-screen').style.display='none';
-    boot();
-  }else{
-    document.getElementById('pin-err').textContent='❌ PIN 오류';
-    pv='';ud();
-    const el=document.getElementById('pin-screen');
-    el.style.animation='shake .3s';setTimeout(()=>el.style.animation='',300);
-  }
+  if(pv===PIN){sessionStorage.setItem('els_ok','1');document.getElementById('pin-screen').style.display='none';boot();}
+  else{document.getElementById('pin-err').textContent='❌ PIN 오류';pv='';ud();
+    const el=document.getElementById('pin-screen');el.style.animation='shake .3s';setTimeout(()=>el.style.animation='',300);}
 }
 document.addEventListener('keydown',e=>{
-  const ps2=document.getElementById('pin-screen');
-  if(ps2.style.display==='none')return;
+  if(document.getElementById('pin-screen').style.display==='none')return;
   if(e.key>='0'&&e.key<='9')pi(e.key);
   if(e.key==='Backspace')pc();
   if(e.key==='Enter')ps();
 });
-(function(){
-  if(sessionStorage.getItem('els_ok')==='1'){
-    document.getElementById('pin-screen').style.display='none';
-    boot();
-  }
-})();
+(function(){if(sessionStorage.getItem('els_ok')==='1'){document.getElementById('pin-screen').style.display='none';boot();}})();
 
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
 //  Fetch
-// ════════════════════════════════════════
-const PROXIES=[
+// ═══════════════════════════════════════
+const PRX=[
   u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
   u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
   u=>u
 ];
-async function fx2(url,ms=8000){
-  for(const mk of PROXIES){
-    try{
-      const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+async function fx2(url,ms=9000){
+  for(const mk of PRX){
+    try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
       const r=await fetch(mk(url),{signal:c.signal});clearTimeout(t);
       const j=await r.json();return j.contents?JSON.parse(j.contents):j;
     }catch{}
   }return null;
 }
 
-async function fetchYF(ticker){
-  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=10d`);
+// YF: 가격 + 기술지표용 2y 히스토리
+async function fetchFull(ticker){
+  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y`);
   if(!d?.chart?.result?.[0])return null;
-  const cl=d.chart.result[0].indicators.quote[0].close;
-  const ts=d.chart.result[0].timestamp;
-  const valid=cl.map((v,i)=>v!=null?{v,t:ts[i]}:null).filter(Boolean);
-  if(valid.length<2)return null;
-  const cur=valid[valid.length-1].v;
-  const prv=valid[valid.length-2].v;
-  // weekly: ~5 bars back
-  const wk=valid.length>=6?valid[valid.length-6].v:null;
-  // monthly: ~22 bars back
-  const mo=valid.length>=23?valid[valid.length-23].v:null;
+  const r=d.chart.result[0];
+  const ts=r.timestamp;
+  const q=r.indicators.quote[0];
+  const cl=q.close, hi=q.high, lo=q.low, op=q.open;
+  if(!cl?.length||cl.length<5)return null;
+
+  const price=cl[cl.length-1], prev=cl[cl.length-2]||price;
+  const chg1d=+((price-prev)/prev*100).toFixed(2);
+
+  // 주간/월간
+  const wkP=cl.length>=6?cl[cl.length-6]:null;
+  const moP=cl.length>=23?cl[cl.length-23]:null;
+  const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
+  const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
+
+  // MA
+  function sma(arr,w){const o=new Array(arr.length).fill(NaN);for(let i=w-1;i<arr.length;i++){let s=0;for(let j=i-w+1;j<=i;j++)s+=arr[j];o[i]=s/w;}return o;}
+  const m50v=sma(cl,50),m100v=sma(cl,100),m250v=cl.length>=250?sma(cl,250):null;
+  const ma50=m50v[cl.length-1],ma100=m100v[cl.length-1];
+  const ma250=m250v?m250v[cl.length-1]:NaN;
+  const sig=m=>isNaN(m)?'n':(price/m-1)*100>3?'a':(price/m-1)*100<-3?'b':'n';
+  const pct=m=>isNaN(m)?null:+((price/m-1)*100).toFixed(1);
+
+  // Ichimoku
+  const n=cl.length;
+  const tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
+  const sa=new Array(n+26).fill(NaN),sb=new Array(n+26).fill(NaN);
+  for(let i=0;i<n;i++){
+    if(i>=8){const h=Math.max(...hi.slice(i-8,i+1)),l=Math.min(...lo.slice(i-8,i+1));tn[i]=(h+l)/2;}
+    if(i>=25){const h=Math.max(...hi.slice(i-25,i+1)),l=Math.min(...lo.slice(i-25,i+1));kj[i]=(h+l)/2;}
+    if(!isNaN(tn[i])&&!isNaN(kj[i]))sa[i+26]=(tn[i]+kj[i])/2;
+    if(i>=51){const h=Math.max(...hi.slice(i-51,i+1)),l=Math.min(...lo.slice(i-51,i+1));sb[i+26]=(h+l)/2;}
+  }
+  const ltn=tn[n-1],lkj=kj[n-1],lsa=sa[n-1],lsb=sb[n-1];
+  const ctop=!isNaN(lsa)&&!isNaN(lsb)?Math.max(lsa,lsb):NaN;
+  const cbot=!isNaN(lsa)&&!isNaN(lsb)?Math.min(lsa,lsb):NaN;
+  const cp=isNaN(ctop)?'i':price>ctop?'a':price<cbot?'b':'i';
+  const tkSig=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
+
+  // RSI
+  const rets=cl.slice(1).map((v,i)=>cl[i]?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
+  const avgR=rets.reduce((a,b)=>a+b,0)/rets.length;
+  const vol=Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100;
+  const rsiV=(()=>{const d=cl.slice(-15).map((v,i,a)=>i>0?v-a[i-1]:NaN).filter(v=>!isNaN(v));
+    const g=d.filter(v=>v>0).reduce((a,b)=>a+b,0)/14;
+    const l=-d.filter(v=>v<0).reduce((a,b)=>a+b,0)/14;
+    return l===0?100:+(100-100/(1+g/l)).toFixed(1);})();
+
+  // 52주
+  const h52=Math.max(...hi.filter(v=>v)),l52=Math.min(...lo.filter(v=>v));
+  const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
+
+  // 위험도
+  let rs=50;
+  if(!isNaN(ma50)&&!isNaN(ma100)&&!isNaN(ma250)){
+    [ma50,ma100,ma250].forEach(m=>{if(!isNaN(m))rs+=price<m?5:-3;});
+  }
+  if(cp==='b')rs+=15;else if(cp==='a')rs-=10;
+  if(tkSig==='bear')rs+=8;else rs-=5;
+  if(rsiV<30)rs-=10;else if(rsiV>75)rs+=8;
+  if(h52>l52){const pos=(price-l52)/(h52-l52);if(pos<0.15)rs-=8;else if(pos>0.9)rs+=8;}
+  rs=Math.max(0,Math.min(100,Math.round(rs)));
+
+  // 차트 시계열
+  const prevYearStart=new Date(new Date().getFullYear()-1,0,1).getTime()/1000;
+  const fuTs=[];let nxt=ts[ts.length-1];
+  while(fuTs.length<44){nxt+=86400;const dw=new Date(nxt*1000).getUTCDay();if(dw>0&&dw<6)fuTs.push(nxt);}
+  const extTs=[...ts,...fuTs];
+  const slN=arr=>ts.map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null).filter(Boolean);
+  const slX=arr=>extTs.map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null).filter(Boolean);
+  const ohlc=ts.map((t,i)=>{if(t<prevYearStart||isNaN(cl[i]))return null;
+    return{time:t,open:+op[i].toFixed(4),high:+hi[i].toFixed(4),low:+lo[i].toFixed(4),close:+cl[i].toFixed(4)};}).filter(Boolean);
+
   return{
-    price:+cur.toFixed(4),
-    chg1d:+((cur-prv)/prv*100).toFixed(2),
-    chgWk:wk?+((cur-wk)/wk*100).toFixed(2):null,
-    chgMo:mo?+((cur-mo)/mo*100).toFixed(2):null,
+    price:+price.toFixed(4),chg1d,chgWk,chgMo,
+    ma:{v50:isNaN(ma50)?null:+ma50.toFixed(2),v100:isNaN(ma100)?null:+ma100.toFixed(2),v250:isNaN(ma250)?null:+ma250.toFixed(2),
+        p50:pct(ma50),p100:pct(ma100),p250:pct(ma250),s50:sig(ma50),s100:sig(ma100),s250:sig(ma250)},
+    ichi:{cp,tkSig,tn:isNaN(ltn)?null:+ltn.toFixed(2),kj:isNaN(lkj)?null:+lkj.toFixed(2)},
+    risk:{score:rs,vol:+vol.toFixed(1),rsi:rsiV},
+    lv:{h52:+h52.toFixed(2),l52:+l52.toFixed(2),rp},
+    chart:{ohlc,m50:slN(m50v),m100:slN(m100v),m250:m250v?slN(m250v):[],
+           tn:slN(tn),kj:slN(kj),sa:slX(sa.slice(0,n)),sb:slX(sb.slice(0,n))},
   };
 }
 
-async function fetchFRED(seriesId){
+async function fetchYFSimple(ticker){
+  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=30d`);
+  if(!d?.chart?.result?.[0])return null;
+  const cl=d.chart.result[0].indicators.quote[0].close;
+  const valid=cl.filter(v=>v!=null);
+  if(valid.length<2)return null;
+  const price=valid[valid.length-1],prev=valid[valid.length-2];
+  const wkP=valid.length>=6?valid[valid.length-6]:null;
+  const moP=valid.length>=23?valid[valid.length-23]:null;
+  return{
+    price:+price.toFixed(4),
+    chg1d:+((price-prev)/prev*100).toFixed(2),
+    chgWk:wkP?+((price-wkP)/wkP*100).toFixed(2):null,
+    chgMo:moP?+((price-moP)/moP*100).toFixed(2):null,
+  };
+}
+
+async function fetchFRED(sid){
   if(!fredKey)return null;
   try{
-    const url=`https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${fredKey}&file_type=json&sort_order=desc&limit=5`;
-    const d=await fx2(url,8000);
+    const d=await fx2(`https://api.stlouisfed.org/fred/series/observations?series_id=${sid}&api_key=${fredKey}&file_type=json&sort_order=desc&limit=5`,8000);
     const obs=(d?.observations||[]).filter(o=>o.value!=='.');
     if(obs.length<2)return null;
     return{price:+parseFloat(obs[0].value).toFixed(3),chg1d:+(parseFloat(obs[0].value)-parseFloat(obs[1].value)).toFixed(3)};
   }catch{return null;}
 }
 
-// ════════════════════════════════════════
-//  Load all
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
+//  Load
+// ═══════════════════════════════════════
 function setL(p,msg){document.getElementById('lbar').style.width=p+'%';document.getElementById('lstatus').textContent=msg;}
-
-function boot(){
-  document.getElementById('loading').style.display='flex';
-  runLoad();
-}
+function boot(){document.getElementById('loading').style.display='flex';runLoad();}
 
 async function runLoad(){
   document.getElementById('rbtn').disabled=true;
   document.getElementById('loading').style.display='flex';
   document.getElementById('app').style.display='none';
-  setL(0,'데이터 수집 중...');
+  setL(0,'초기화...');
 
-  const allTickers=[...INDICES,...FUTURES,...FX,...COMM,...VOL,
-    ...KR_STOCKS.map(s=>({k:s.k,t:s.k})),
-    ...GL_STOCKS.map(s=>({k:s.k,t:s.k})),
-    ...RATES_YF,
-  ];
-
+  // Full tech data: indices + stocks
+  const fullList=[...INDICES_LIST,...KR_STOCKS,...GL_STOCKS];
   let done=0;
-  for(let i=0;i<allTickers.length;i+=5){
-    const batch=allTickers.slice(i,i+5);
+  for(let i=0;i<fullList.length;i+=4){
+    const batch=fullList.slice(i,i+4);
     await Promise.all(batch.map(async item=>{
-      const ticker=item.t||item.k;
-      setL(Math.round(done/allTickers.length*80),`${ticker} 조회 중...`);
-      const r=await fetchYF(ticker);
+      setL(Math.round(done/fullList.length*70),`${item.k} 조회 중...`);
+      const r=await fetchFull(item.k);
       if(r)D[item.k]=r;
       done++;
     }));
   }
 
-  // FRED 금리 (API 키 있으면)
+  // Simple data: FX, rates(YF), commodities, vol
+  const simpleList=[...FX_LIST,...RATES_YF,...COMM_LIST,...VOL_LIST];
+  setL(75,'FX/금리/원자재 조회 중...');
+  await Promise.all(simpleList.map(async item=>{
+    const r=await fetchYFSimple(item.k);
+    if(r)D[item.k]=r;
+  }));
+
+  // FRED
   if(fredKey){
-    setL(85,'FRED 금리 조회 중...');
+    setL(90,'FRED 금리 조회 중...');
     await Promise.all(RATES_FRED.map(async r=>{
       const res=await fetchFRED(r.s);
-      if(res)D[r.k]={...D[r.k],...res};
+      if(res)D[r.k]=res;
     }));
   }
 
   setL(98,'화면 그리는 중...');
   renderAll();
   setL(100,'완료');
-  setTimeout(()=>{
-    document.getElementById('loading').style.display='none';
-    document.getElementById('app').style.display='';
-  },250);
+  setTimeout(()=>{document.getElementById('loading').style.display='none';document.getElementById('app').style.display='';},200);
   document.getElementById('upd').textContent='업데이트: '+new Date().toLocaleTimeString('ko-KR');
   document.getElementById('rbtn').disabled=false;
 }
 
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
 //  Render helpers
-// ════════════════════════════════════════
-function fv(v,dec=2){return v==null?'—':v.toFixed(dec);}
-function fpct(v){if(v==null)return '<span class="muted">—</span>';const c=v>=0?'pos':'neg';const s=v>=0?'+':'';return `<span class="${c} chg-badge mono">${s}${v.toFixed(2)}%</span>`;}
-function frate(v,chg){
-  const vs=v==null?'—':v.toFixed(3)+'%';
-  const cs=chg==null?'':(chg>=0?`<span class="neg mono">(+${chg.toFixed(3)}bp)</span>`:`<span class="pos mono">(${chg.toFixed(3)}bp)</span>`);
-  return `<span class="mono">${vs}</span> ${cs}`;
-}
-function arrowE(v){if(v==null)return '';return v>0?'🔺':v<0?'🔻':'➡️';}
-
-function makeTable(headers,rows,minWidth){
-  const ths=headers.map((h,i)=>`<th${i>1?' style="text-align:right"':''}>${h}</th>`).join('');
-  const trs=rows.map(r=>`<tr>${r}</tr>`).join('');
-  return `<div class="tbl-wrap"><table style="min-width:${minWidth||500}px"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
-}
-
-// ════════════════════════════════════════
-//  Tab render
-// ════════════════════════════════════════
+// ═══════════════════════════════════════
+function fv(v,d=2){return v==null?'—':v.toFixed(d);}
+function fp(v){if(v==null)return '<span class="muted">—</span>';const c=v>=0?'pos':'neg';return `<span class="${c} mono" style="font-size:11px;font-weight:600">${v>=0?'+':''}${v.toFixed(2)}%</span>`;}
+function fSig(s,p){const t=p!=null?(p>0?'+':'')+p+'%':'N/A';return `<span class="sig ${s||'n'}">${s==='a'?'↑':s==='b'?'↓':'≈'} ${t}</span>`;}
+const CLOUD_TXT={a:'↑ 구름위',i:'≈ 구름내',b:'↓ 구름아래'};
+function fCloud(cp){return `<span class="cloud ${cp||'i'}">${CLOUD_TXT[cp]||'?'}</span>`;}
+function fRsk(s){const c=s<35?'l':s<65?'m':'h';return `<span class="rs ${c}">${s}</span>`;}
 function switchTab(id,btn){
-  ['macro','korea','global'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
+  ['macro','indices','korea','global'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+id).style.display='';
   btn.classList.add('active');
 }
+function renderAll(){renderMacro();renderIndices();renderKorea();renderGlobal();}
 
-function renderAll(){
-  renderMacro();
-  renderKorea();
-  renderGlobal();
-}
-
-// ── 거시지표 ─────────────────────────────
+// ── 거시지표 ────────────────────────────
 function renderMacro(){
   const el=document.getElementById('tab-macro');
-  let h='';
-
-  // FRED key input
-  h+=`<div class="fred-input-wrap">
+  let h=`<div class="fred-row">
     <span style="font-size:10px;color:var(--blue);white-space:nowrap">🔑 FRED API Key</span>
-    <input class="fred-input" id="fred-key-inp" type="password" value="${fredKey}" placeholder="32자리 FRED API 키 (금리 데이터)">
-    <button class="rbtn" onclick="saveFredKey()">저장</button>
+    <input class="fred-inp" id="fred-inp" type="password" value="${fredKey}" placeholder="32자리 FRED API 키">
+    <button class="rbtn" onclick="saveFred()">저장</button>
   </div>`;
-
-  // 주식 지수
-  h+=`<div class="sec-title">📈 주식 지수</div>`;
-  const idxRows=INDICES.map(idx=>{
-    const d=D[idx.k];
-    const priceStr=d?`<span class="mono">${fv(d.price)}</span>`:'<span class="muted">—</span>';
-    const region={asia:'🇰🇷🇯🇵🇭🇰',eu:'🇪🇺',us:'🇺🇸'}[idx.region]||'';
-    return `<td>${region} ${idx.k}</td><td>${idx.n}</td>
-      <td>${priceStr}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  h+=makeTable(['티커','명칭','현재가','전일','주간','월간'],idxRows,560);
-
-  // 선물
-  h+=`<div class="sec-title">📦 선물</div>`;
-  const futRows=FUTURES.map(f=>{
-    const d=D[f.k];
-    return `<td>${f.k}</td><td>${f.n}</td>
-      <td class="mono">${d?fv(d.price):'—'}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  h+=makeTable(['티커','명칭','현재가','전일','주간','월간'],futRows,520);
 
   // FX
   h+=`<div class="sec-title">💱 환율</div>`;
-  const fxRows=FX.map(f=>{
-    const d=D[f.k];
-    return `<td>${f.k}</td><td>${f.n}</td>
+  h+=`<div class="tbl-wrap"><table style="min-width:450px"><thead><tr>
+    <th>페어</th><th>명칭</th><th>현재</th><th>전일</th><th>주간</th><th>월간</th>
+  </tr></thead><tbody>`;
+  FX_LIST.forEach(f=>{const d=D[f.k];
+    h+=`<tr onclick="openDet('${f.k}','${f.n}')">
+      <td class="mono" style="font-weight:700">${f.k}</td><td>${f.n}</td>
       <td class="mono">${d?fv(d.price):'—'}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  h+=makeTable(['페어','명칭','현재','전일','주간','월간'],fxRows,520);
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td><td>${d?fp(d.chgMo):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
 
   // 금리
   h+=`<div class="sec-title">📉 금리</div>`;
-  const rateCountries=['US','KR','JP','DE','GB','FR'];
-  const rateMap={
-    US:[{k:'UST2Y',n:'2Y'},{k:'UST10Y',n:'10Y'},{k:'UST30Y',n:'30Y'}],
-    KR:[{k:'KTB3Y',n:'3Y'},{k:'KTB10Y',n:'10Y'},{k:'KTB30Y',n:'30Y'}],
-    JP:[{k:'JGB10Y',n:'10Y'},{k:'JGB30Y',n:'30Y'}],
-    DE:[{k:'BUND10Y',n:'10Y'}],
-    GB:[{k:'GILT10Y',n:'10Y'}],
-    FR:[{k:'OAT10Y',n:'10Y'}],
-  };
-  const cNames={US:'🇺🇸 UST',KR:'🇰🇷 KTB',JP:'🇯🇵 JGB',DE:'🇩🇪 Bund',GB:'🇬🇧 Gilt',FR:'🇫🇷 OAT'};
-  const rateRows=rateCountries.map(cc=>{
-    const items=rateMap[cc];
-    let row=`<td>${cNames[cc]}</td><td></td>`;
-    items.forEach(it=>{
-      const d=D[it.k];
-      row+=`<td style="white-space:nowrap">
-        <div style="font-size:9px;color:var(--t3)">${it.n}</div>
-        <div>${d?frate(d.price,d.chg1d):'<span class="muted">—</span>'}</div>
-      </td>`;
-    });
-    // pad empty columns
-    for(let i=items.length;i<3;i++) row+=`<td></td>`;
-    return row;
-  });
-  h+=makeTable(['국가','','단기','중기','장기'],rateRows,520);
-  h+=`<div style="font-size:10px;color:var(--t3);margin-bottom:12px">* 금리는 %; 변화는 bp. FRED API 키 입력 시 정확도 향상.</div>`;
+  h+=`<div class="tbl-wrap"><table style="min-width:420px"><thead><tr>
+    <th>종목</th><th>명칭</th><th>수익률(%)</th><th>전일(bp)</th>
+  </tr></thead><tbody>`;
+  [...RATES_YF,...RATES_FRED.filter(r=>D[r.k])].reduce((seen,r)=>{
+    if(seen.has(r.k))return seen;seen.add(r.k);
+    const d=D[r.k]||D[r.k];
+    h+=`<tr>
+      <td class="mono" style="font-weight:700">${r.k||r.n}</td><td>${r.n}</td>
+      <td class="mono">${d?fv(d.price,3)+'%':'—'}</td>
+      <td>${d&&d.chg1d!=null?`<span class="${d.chg1d>=0?'neg':'pos'} mono" style="font-size:11px">${d.chg1d>=0?'+':''}${fv(d.chg1d,3)}bp</span>`:'—'}</td>
+    </tr>`;
+    return seen;
+  },new Set());
+  h+=`</tbody></table></div>`;
 
   // 원자재
   h+=`<div class="sec-title">🛢️ 원자재</div>`;
-  const commRows=COMM.map(c=>{
-    const d=D[c.k];
-    return `<td>${c.k}</td><td>${c.n}</td>
+  h+=`<div class="tbl-wrap"><table style="min-width:420px"><thead><tr>
+    <th>티커</th><th>명칭</th><th>현재</th><th>전일</th><th>주간</th><th>월간</th>
+  </tr></thead><tbody>`;
+  COMM_LIST.forEach(c=>{const d=D[c.k];
+    h+=`<tr onclick="openDet('${c.k}','${c.n}')">
+      <td class="mono" style="font-weight:700">${c.k}</td><td>${c.n}</td>
       <td class="mono">${d?fv(d.price):'—'}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  h+=makeTable(['티커','명칭','현재','전일','주간','월간'],commRows,520);
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td><td>${d?fp(d.chgMo):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
 
   // 변동성
   h+=`<div class="sec-title">🌊 변동성</div>`;
-  const volRows=VOL.map(v=>{
-    const d=D[v.k];
-    return `<td>${v.k}</td><td>${v.n}</td>
+  h+=`<div class="tbl-wrap"><table style="min-width:380px"><thead><tr>
+    <th>티커</th><th>명칭</th><th>현재</th><th>전일</th><th>주간</th>
+  </tr></thead><tbody>`;
+  VOL_LIST.forEach(v=>{const d=D[v.k];
+    h+=`<tr onclick="openDet('${v.k}','${v.n}')">
+      <td class="mono" style="font-weight:700">${v.k}</td><td>${v.n}</td>
       <td class="mono">${d?fv(d.price):'—'}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  h+=makeTable(['티커','명칭','현재','전일','주간','월간'],volRows,520);
-
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
   el.innerHTML=h;
 }
 
-// ── 한국주식 ──────────────────────────────
+// ── 주요 지수 (기술지표 포함) ─────────────────
+function renderIndices(){
+  const el=document.getElementById('tab-indices');
+  let h=`<div class="tbl-wrap"><table style="min-width:720px"><thead><tr>
+    <th>지수</th><th>명칭</th><th>현재가</th><th>전일</th><th>주간</th>
+    <th>MA50</th><th>MA100</th><th>MA250</th><th>일목구름</th><th>위험도</th>
+  </tr></thead><tbody>`;
+  INDICES_LIST.forEach((idx,i)=>{
+    const d=D[idx.k]; const col=colFor(idx.k,i);
+    const ce={asia:'🇰🇷🇯🇵🇭🇰',eu:'🇪🇺',us:'🇺🇸',fut:'📦'}[idx.cat]||'';
+    h+=`<tr onclick="openDet('${idx.k}','${idx.n}')">
+      <td><span style="display:flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${col};box-shadow:0 0 5px ${col}55;flex-shrink:0"></span>
+        <span style="font-weight:700;font-size:12.5px">${idx.k}</span>
+      </span></td>
+      <td>${ce} ${idx.n}</td>
+      <td class="mono" style="font-weight:600">${d?fv(d.price):'—'}</td>
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td>
+      <td>${d?fSig(d.ma.s50,d.ma.p50):'—'}</td>
+      <td>${d?fSig(d.ma.s100,d.ma.p100):'—'}</td>
+      <td>${d?fSig(d.ma.s250,d.ma.p250):'—'}</td>
+      <td>${d?fCloud(d.ichi.cp):'—'}</td>
+      <td>${d?fRsk(d.risk.score):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
+  el.innerHTML=h;
+}
+
+// ── 한국주식 ─────────────────────────────
 function renderKorea(){
   const el=document.getElementById('tab-korea');
-  const rows=KR_STOCKS.map(s=>{
-    const d=D[s.k];
-    const prStr=d?(s.k.includes('.KS')?`₩${Math.round(d.price).toLocaleString('ko')}`:`$${fv(d.price)}`):'—';
-    const cc=d&&d.chg1d>=0?'pos':'neg';
-    return `<td>${s.k}</td><td>${s.n}</td>
-      <td class="mono">${prStr}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  el.innerHTML=`
-    <div class="sec-title">🇰🇷 한국 주요주</div>
-    ${makeTable(['티커','종목명','현재가','전일','주간','월간'],rows,520)}`;
+  let h=`<div class="tbl-wrap"><table style="min-width:720px"><thead><tr>
+    <th>티커</th><th>종목명</th><th>현재가</th><th>전일</th><th>주간</th><th>월간</th>
+    <th>MA50</th><th>MA100</th><th>일목구름</th><th>위험도</th>
+  </tr></thead><tbody>`;
+  KR_STOCKS.forEach((s,i)=>{
+    const d=D[s.k]; const col=colFor(s.k,i);
+    const prStr=d?`₩${Math.round(d.price).toLocaleString('ko')}`:'—';
+    h+=`<tr onclick="openDet('${s.k}','${s.n}')">
+      <td><span style="display:flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0"></span>
+        <span style="font-weight:700">${s.k}</span>
+      </span></td>
+      <td>${s.n}</td>
+      <td class="mono" style="font-weight:600">${prStr}</td>
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td><td>${d?fp(d.chgMo):'—'}</td>
+      <td>${d?fSig(d.ma.s50,d.ma.p50):'—'}</td>
+      <td>${d?fSig(d.ma.s100,d.ma.p100):'—'}</td>
+      <td>${d?fCloud(d.ichi.cp):'—'}</td>
+      <td>${d?fRsk(d.risk.score):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
+  el.innerHTML=h;
 }
 
-// ── 글로벌주식 ─────────────────────────────
+// ── 글로벌주식 ───────────────────────────
 function renderGlobal(){
   const el=document.getElementById('tab-global');
-  const rows=GL_STOCKS.map(s=>{
-    const d=D[s.k];
-    return `<td>${s.k}</td><td>${s.n}</td>
-      <td class="mono">${d?'$'+fv(d.price):'—'}</td>
-      <td>${d?fpct(d.chg1d):'—'}</td>
-      <td>${d?fpct(d.chgWk):'—'}</td>
-      <td>${d?fpct(d.chgMo):'—'}</td>`;
-  });
-  el.innerHTML=`
-    <div class="sec-title">🌐 글로벌 주요주</div>
-    ${makeTable(['티커','종목명','현재가','전일','주간','월간'],rows,520)}`;
+  let h=`<div class="tbl-wrap"><table style="min-width:720px"><thead><tr>
+    <th>티커</th><th>종목명</th><th>현재가</th><th>전일</th><th>주간</th><th>월간</th>
+    <th>MA50</th><th>MA100</th><th>일목구름</th><th>위험도</th>
+  </tr></thead><tbody>`;
+  GL_STOCKS.forEach((s,i)=>{
+    const d=D[s.k]; const col=colFor(s.k,i);
+    h+=`<tr onclick="openDet('${s.k}','${s.n}')">
+      <td><span style="display:flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0"></span>
+        <span style="font-weight:700">${s.k}</span>
+      </span></td>
+      <td>${s.n}</td>
+      <td class="mono" style="font-weight:600">${d?'$'+fv(d.price):'—'}</td>
+      <td>${d?fp(d.chg1d):'—'}</td><td>${d?fp(d.chgWk):'—'}</td><td>${d?fp(d.chgMo):'—'}</td>
+      <td>${d?fSig(d.ma.s50,d.ma.p50):'—'}</td>
+      <td>${d?fSig(d.ma.s100,d.ma.p100):'—'}</td>
+      <td>${d?fCloud(d.ichi.cp):'—'}</td>
+      <td>${d?fRsk(d.risk.score):'—'}</td>
+    </tr>`;});
+  h+=`</tbody></table></div>`;
+  el.innerHTML=h;
 }
 
-// FRED key save
-window.saveFredKey=function(){
-  const v=document.getElementById('fred-key-inp').value.trim();
-  fredKey=v;
-  localStorage.setItem('els_fred_key',v);
-  runLoad();
+// ═══════════════════════════════════════
+//  Detail
+// ═══════════════════════════════════════
+function openDet(ticker,name){
+  const d=D[ticker]; if(!d||!d.chart) return;
+  document.getElementById('detail').style.display='block';
+  document.body.style.overflow='hidden';
+  const col=COLS[([...INDICES_LIST,...KR_STOCKS,...GL_STOCKS].findIndex(x=>x.k===ticker)||0)%COLS.length]||'#58a6ff';
+  const cc=d.chg1d>=0?'var(--green)':'var(--red)';
+  const isKRW=ticker.includes('.KS');
+  const prStr=isKRW?`₩${Math.round(d.price).toLocaleString('ko')}`:`$${fv(d.price)}`;
+  document.getElementById('d-tk').textContent=ticker;
+  document.getElementById('d-tk').style.color=col;
+  document.getElementById('d-nm').textContent=name||'';
+  document.getElementById('d-pr').textContent=prStr;
+  document.getElementById('d-ch').textContent=` ${d.chg1d>=0?'+':''}${d.chg1d}%`;
+  document.getElementById('d-ch').style.color=cc;
+  setTimeout(()=>{buildChart(d,col);buildInfo(d,isKRW);},80);
+}
+function closeDet(){
+  document.getElementById('detail').style.display='none';
+  document.body.style.overflow='';
+  if(lwChart){lwChart.remove();lwChart=null;}
+}
+
+function buildChart(d,col){
+  const box=document.getElementById('chart-box');
+  box.innerHTML='';
+  if(lwChart){lwChart.remove();lwChart=null;}
+  lwChart=LightweightCharts.createChart(box,{
+    width:box.getBoundingClientRect().width||600, height:400,
+    layout:{background:{color:'#0d1117'},textColor:'#8b949e'},
+    grid:{vertLines:{color:'#1c2230'},horzLines:{color:'#1c2230'}},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+    rightPriceScale:{borderColor:'#1c2230'},
+    timeScale:{borderColor:'#1c2230',timeVisible:true},
+  });
+  const ch=d.chart;
+  // Cloud SA/SB
+  if(ch.sa?.length&&ch.sb?.length){
+    const saMap={},sbMap={};
+    ch.sa.forEach(p=>saMap[p.time]=p.value);
+    ch.sb.forEach(p=>sbMap[p.time]=p.value);
+    const allT=[...new Set([...ch.sa.map(p=>p.time),...ch.sb.map(p=>p.time)])].sort();
+    const cloudTop=allT.filter(t=>saMap[t]!=null&&sbMap[t]!=null).map(t=>({time:t,value:Math.max(saMap[t],sbMap[t])}));
+    const cloudBot=allT.filter(t=>saMap[t]!=null&&sbMap[t]!=null).map(t=>({time:t,value:Math.min(saMap[t],sbMap[t])}));
+    if(cloudTop.length){
+      const ct=lwChart.addAreaSeries({lineColor:'transparent',lineWidth:0,topColor:'rgba(38,166,154,0.35)',bottomColor:'rgba(38,166,154,0.35)',priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:false});
+      ct.setData(cloudTop);
+      const cb=lwChart.addAreaSeries({lineColor:'transparent',lineWidth:0,topColor:'#0d1117',bottomColor:'#0d1117',priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:false});
+      cb.setData(cloudBot);
+    }
+    // SA/SB lines
+    if(ch.sa.length){const s=lwChart.addLineSeries({color:'#26c6da',lineWidth:1,lineStyle:LightweightCharts.LineStyle.Solid,priceLineVisible:false,lastValueVisible:false});s.setData(ch.sa);}
+    if(ch.sb.length){const s=lwChart.addLineSeries({color:'#ef9a9a',lineWidth:1,lineStyle:LightweightCharts.LineStyle.Solid,priceLineVisible:false,lastValueVisible:false});s.setData(ch.sb);}
+  }
+  // Candlestick
+  const cs=lwChart.addCandlestickSeries({upColor:'#3fb950',downColor:'#f85149',borderUpColor:'#3fb950',borderDownColor:'#f85149',wickUpColor:'#3fb950',wickDownColor:'#f85149'});
+  if(ch.ohlc?.length)cs.setData(ch.ohlc);
+  // MAs
+  [{k:'m50',c:'#58a6ff',w:1.5},{k:'m100',c:'#d29922',w:1.5},{k:'m250',c:'#f85149',w:2}].forEach(cfg=>{
+    if(!ch[cfg.k]?.length)return;
+    lwChart.addLineSeries({color:cfg.c,lineWidth:cfg.w,priceLineVisible:false,crosshairMarkerVisible:false,lastValueVisible:true}).setData(ch[cfg.k]);
+  });
+  // Ichi lines
+  [{k:'tn',c:'#bc8cff'},{k:'kj',c:'#fb923c'}].forEach(cfg=>{
+    if(!ch[cfg.k]?.length)return;
+    lwChart.addLineSeries({color:cfg.c,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,priceLineVisible:false,lastValueVisible:false}).setData(ch[cfg.k]);
+  });
+  const from=new Date(new Date().getFullYear()-1,0,1).getTime()/1000;
+  const to=Math.floor(Date.now()/1000)+60*86400;
+  lwChart.timeScale().setVisibleRange({from,to});
+  window.onresize=()=>{if(lwChart)lwChart.resize(box.getBoundingClientRect().width||600,400);};
+}
+
+function buildInfo(d,isKRW){
+  const ma=d.ma,ic=d.ichi,lv=d.lv,rk=d.risk;
+  const ctxt={a:'↑ 구름 위 (강세)',i:'≈ 구름 내 (중립)',b:'↓ 구름 아래 (약세)'};
+  const ccol={a:'var(--green)',i:'var(--amber)',b:'var(--red)'};
+  function card(lbl,col,val,sub){
+    return `<div class="scard"><div class="cardlbl">${lbl}</div><div class="cardval" style="color:${col}">${val}</div>${sub?`<div style="font-size:9.5px;color:var(--t3)">${sub}</div>`:''}</div>`;
+  }
+  function pStr(p){return p!=null?(p>0?'+':'')+p+'%':'N/A';}
+
+  let h='';
+  h+=`<div class="dsec">일목균형표</div>`;
+  h+=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;margin-bottom:4px">
+    <div style="font-size:14px;font-weight:600;color:${ccol[ic.cp]||'var(--amber)'}">${ctxt[ic.cp]||'?'}</div>
+    <div style="font-size:10.5px;color:${ic.tkSig==='bull'?'var(--green)':'var(--red)'};font-family:var(--mono);margin-top:3px">
+      전환선 ${ic.tkSig==='bull'?'>':'<'} 기준선 (${ic.tkSig==='bull'?'강세':'약세'})
+      ${ic.tn?` · 전환 ${isKRW?'₩'+Math.round(ic.tn).toLocaleString('ko'):'$'+ic.tn}`:''}
+      ${ic.kj?` / 기준 ${isKRW?'₩'+Math.round(ic.kj).toLocaleString('ko'):'$'+ic.kj}`:''}
+    </div>
+  </div>`;
+
+  h+=`<div class="dsec">이동평균</div><div class="sgrid">`;
+  h+=card('MA50 대비',  ma.s50==='a'?'var(--green)':ma.s50==='b'?'var(--red)':'var(--amber)', pStr(ma.p50));
+  h+=card('MA100 대비', ma.s100==='a'?'var(--green)':ma.s100==='b'?'var(--red)':'var(--amber)', pStr(ma.p100));
+  h+=card('MA250 대비', ma.s250==='a'?'var(--green)':ma.s250==='b'?'var(--red)':'var(--amber)', pStr(ma.p250));
+  h+=card('52주 위치',  lv.rp>80?'var(--amber)':lv.rp<20?'var(--blue)':'var(--t1)', lv.rp+'%', `ATH比 ${lv.vsH||lv.h52?((d.price-lv.h52)/lv.h52*100).toFixed(1)+'%':'—'}`);
+  h+=`</div>`;
+
+  h+=`<div class="dsec">리스크</div><div class="sgrid">`;
+  h+=card('위험도', rk.score>=70?'var(--red)':rk.score>=45?'var(--amber)':'var(--green)', rk.score+'/100');
+  h+=`<div class="scard"><div class="cardlbl">RSI / 변동성</div>
+    <div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">
+      RSI ${rk.rsi}<br>σ ${rk.vol}%
+    </div></div>`;
+  h+=`</div>`;
+
+  h+=`<div class="dsec">수익률</div><div class="sgrid">`;
+  h+=card('전일', d.chg1d>=0?'var(--green)':'var(--red)', (d.chg1d>=0?'+':'')+d.chg1d+'%');
+  h+=card('주간', d.chgWk==null?'var(--t3)':d.chgWk>=0?'var(--green)':'var(--red)', d.chgWk!=null?(d.chgWk>=0?'+':'')+d.chgWk+'%':'—');
+  h+=`</div>`;
+
+  document.getElementById('dinfo').innerHTML=h;
+}
+
+// FRED save
+window.saveFred=function(){
+  const v=document.getElementById('fred-inp').value.trim();
+  fredKey=v;localStorage.setItem('els_fred',v);runLoad();
 };
 </script>
 </body>
