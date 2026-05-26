@@ -20,8 +20,8 @@ jobs:
       - run: pip install --upgrade --no-cache-dir git+https://github.com/rongardF/tvdatafeed.git
       - name: ELS 알람 실행
         env:
-          BOT_TOKEN:    ${{ secrets.ELS_BOT_TOKEN }}
-          ELS_CHAT_ID:  ${{ secrets.CHAT_ID }}
+          ELS_BOT_TOKEN:    ${{ secrets.ELS_BOT_TOKEN }}
+          CHAT_ID:  ${{ secrets.CHAT_ID }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           TV_USERNAME:  ${{ secrets.TV_USERNAME }}
           TV_PASSWORD:  ${{ secrets.TV_PASSWORD }}
