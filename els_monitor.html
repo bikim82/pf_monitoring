@@ -176,7 +176,7 @@ tbody tr:hover td:first-child{background:var(--bg3)}
 // ═══════════════════════════════════════
 //  ★ 설정
 // ═══════════════════════════════════════
-const PIN = '1104';  // ← PIN 변경
+const PIN = '1234';  // ← PIN 변경
 
 // ═══════════════════════════════════════
 //  자산 정의
@@ -293,7 +293,7 @@ async function fx2(url,ms=9000){
   }return null;
 }
 
-// YF: 가격 + 기술지표용 2y 히스토리
+// YF: 클릭 시 차트용 2y 히스토리 (lazy)
 async function fetchFull(ticker){
   const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y`);
   if(!d?.chart?.result?.[0])return null;
@@ -382,6 +382,96 @@ async function fetchFull(ticker){
   };
 }
 
+// 초기 로드용: 6개월 데이터로 기술지표 계산 (빠름)
+async function fetchQuick(ticker){
+  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=6mo`,8000);
+  if(!d?.chart?.result?.[0])return null;
+  const r=d.chart.result[0];
+  const ts=r.timestamp;
+  const q=r.indicators.quote[0];
+  const cl=q.close,hi=q.high,lo=q.low;
+  if(!cl?.length||cl.length<5)return null;
+  const valid=cl.map((v,i)=>v!=null?i:-1).filter(i=>i>=0);
+  if(valid.length<5)return null;
+  const li=valid[valid.length-1],pi=valid[valid.length-2];
+  const price=cl[li],prev=cl[pi]||price;
+  const chg1d=+((price-prev)/prev*100).toFixed(2);
+  const wkP=valid.length>=6?cl[valid[valid.length-6]]:null;
+  const moP=valid.length>=22?cl[valid[valid.length-22]]:null;
+  const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
+  const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
+
+  function sma(arr,w){const o=new Array(arr.length).fill(NaN);
+    for(let i=w-1;i<arr.length;i++){let s=0,cnt=0;
+      for(let j=i-w+1;j<=i;j++){if(arr[j]!=null){s+=arr[j];cnt++;}}
+      if(cnt===w)o[i]=s/w;}return o;}
+  const m50v=sma(cl,50),m100v=sma(cl,100);
+  const ma50=m50v[li],ma100=m100v[li];
+  const sig=m=>isNaN(m)||m==null?'n':(price/m-1)*100>3?'a':(price/m-1)*100<-3?'b':'n';
+  const pct=m=>(isNaN(m)||m==null)?null:+((price/m-1)*100).toFixed(1);
+
+  // Ichimoku (simplified with available data)
+  const n=cl.length;
+  const tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
+  for(let i=0;i<n;i++){
+    if(i>=8&&hi[i]!=null){const h=Math.max(...hi.slice(Math.max(0,i-8),i+1).filter(v=>v!=null));
+      const l=Math.min(...lo.slice(Math.max(0,i-8),i+1).filter(v=>v!=null));tn[i]=(h+l)/2;}
+    if(i>=25&&hi[i]!=null){const h=Math.max(...hi.slice(Math.max(0,i-25),i+1).filter(v=>v!=null));
+      const l=Math.min(...lo.slice(Math.max(0,i-25),i+1).filter(v=>v!=null));kj[i]=(h+l)/2;}
+  }
+  const ltn=tn[li],lkj=kj[li];
+  let cp='i';
+  if(!isNaN(ltn)&&!isNaN(lkj)&&cl.length>26){
+    const saVals=[], sbVals=[];
+    for(let i=26;i<cl.length;i++){
+      if(!isNaN(tn[i-26])&&!isNaN(kj[i-26]))saVals.push((tn[i-26]+kj[i-26])/2);
+      if(i>=52&&hi[i-26]!=null){const h=Math.max(...hi.slice(i-52,i-26).filter(v=>v!=null));
+        const l=Math.min(...lo.slice(i-52,i-26).filter(v=>v!=null));sbVals.push((h+l)/2);}
+    }
+    const lsa=saVals[saVals.length-1]||NaN;
+    const lsb=sbVals[sbVals.length-1]||NaN;
+    if(!isNaN(lsa)&&!isNaN(lsb)){
+      const ctop=Math.max(lsa,lsb),cbot=Math.min(lsa,lsb);
+      cp=price>ctop?'a':price<cbot?'b':'i';
+    }
+  }
+  const tkSig=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
+
+  // RSI
+  const rsiV=(()=>{
+    const validCl=cl.filter(v=>v!=null);
+    if(validCl.length<15)return 50;
+    const d=validCl.slice(-15).map((v,i,a)=>i>0?v-a[i-1]:NaN).filter(v=>!isNaN(v));
+    const g=d.filter(v=>v>0).reduce((a,b)=>a+b,0)/14;
+    const l=-d.filter(v=>v<0).reduce((a,b)=>a+b,0)/14;
+    return l===0?100:+(100-100/(1+g/l)).toFixed(1);
+  })();
+
+  // 52주 (6개월 데이터로 근사)
+  const h52=Math.max(...hi.filter(v=>v!=null));
+  const l52=Math.min(...lo.filter(v=>v!=null));
+  const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
+
+  // 위험도
+  let rs=50;
+  [ma50,ma100].forEach(m=>{if(!isNaN(m)&&m!=null)rs+=price<m?5:-3;});
+  if(cp==='b')rs+=15;else if(cp==='a')rs-=10;
+  if(tkSig==='bear')rs+=8;else rs-=5;
+  if(rsiV<30)rs-=10;else if(rsiV>75)rs+=8;
+  rs=Math.max(0,Math.min(100,Math.round(rs)));
+
+  return{
+    price:+price.toFixed(4),chg1d,chgWk,chgMo,
+    ma:{v50:isNaN(ma50)?null:+ma50.toFixed(2),v100:isNaN(ma100)?null:+ma100.toFixed(2),v250:null,
+        p50:pct(ma50),p100:pct(ma100),p250:null,
+        s50:sig(ma50),s100:sig(ma100),s250:'n'},
+    ichi:{cp,tkSig,tn:isNaN(ltn)?null:+ltn.toFixed(2),kj:isNaN(lkj)?null:+lkj.toFixed(2)},
+    risk:{score:rs,vol:0,rsi:rsiV},
+    lv:{h52:+h52.toFixed(2),l52:+l52.toFixed(2),rp},
+    chart:null, // 클릭 시 lazy fetch
+  };
+}
+
 async function fetchYFSimple(ticker){
   const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=30d`);
   if(!d?.chart?.result?.[0])return null;
@@ -424,12 +514,12 @@ async function runLoad(){
   // Full tech data: indices + stocks
   const fullList=[...INDICES_LIST,...KR_STOCKS,...GL_STOCKS];
   let done=0;
-  for(let i=0;i<fullList.length;i+=4){
-    const batch=fullList.slice(i,i+4);
+  // 초기 로드: fetchQuick (6개월, 빠름) — 차트는 클릭 시 lazy fetch
+  for(let i=0;i<fullList.length;i+=6){
+    const batch=fullList.slice(i,i+6);
     await Promise.all(batch.map(async item=>{
-      setL(Math.round(done/fullList.length*70),`${item.k} 조회 중...`);
-      const r=await fetchFull(item.k);
-      if(r)D[item.k]=r;
+      setL(Math.round(done/fullList.length*75),`${item.k} 조회 중...`);
+      try{const r=await fetchQuick(item.k);if(r)D[item.k]=r;}catch(e){}
       done++;
     }));
   }
@@ -701,11 +791,14 @@ function renderGlobal(){
 // ═══════════════════════════════════════
 //  Detail
 // ═══════════════════════════════════════
-function openDet(ticker,name){
-  const d=D[ticker]; if(!d||!d.chart) return;
+async function openDet(ticker,name){
+  const d=D[ticker]; if(!d) return;
   document.getElementById('detail').style.display='block';
   document.body.style.overflow='hidden';
-  const col=COLS[([...INDICES_LIST,...KR_STOCKS,...GL_STOCKS].findIndex(x=>x.k===ticker)||0)%COLS.length]||'#58a6ff';
+  window.scrollTo(0,0);
+  const allItems=[...INDICES_LIST,...KR_STOCKS,...GL_STOCKS];
+  const idx=allItems.findIndex(x=>x.k===ticker);
+  const col=COLS[(idx>=0?idx:0)%COLS.length]||'#58a6ff';
   const cc=d.chg1d>=0?'var(--green)':'var(--red)';
   const isKRW=ticker.includes('.KS');
   const prStr=isKRW?`₩${Math.round(d.price).toLocaleString('ko')}`:`$${fv(d.price)}`;
@@ -715,7 +808,16 @@ function openDet(ticker,name){
   document.getElementById('d-pr').textContent=prStr;
   document.getElementById('d-ch').textContent=` ${d.chg1d>=0?'+':''}${d.chg1d}%`;
   document.getElementById('d-ch').style.color=cc;
-  setTimeout(()=>{buildChart(d,col);buildInfo(d,isKRW);},80);
+  buildInfo(d,isKRW);
+  // 차트: lazy — 2y full data on demand
+  const box=document.getElementById('chart-box');
+  box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:400px;color:var(--t3);font-size:12px;gap:8px"><span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite"></span>차트 로딩 중...</div>';
+  if(!d.chart){
+    try{const full=await fetchFull(ticker);if(full)D[ticker]={...d,...full};}catch(e){}
+  }
+  const latest=D[ticker];
+  if(latest&&latest.chart) buildChart(latest,col);
+  else box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:400px;color:var(--t3);font-size:12px">차트 데이터 없음</div>';
 }
 function closeDet(){
   document.getElementById('detail').style.display='none';

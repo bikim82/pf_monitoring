@@ -5,7 +5,7 @@ from datetime import datetime,timedelta
 import yfinance as yf
 import pandas as pd
 
-BOT_TOKEN   = os.environ.get("ELS_BOT_TOKEN","")
+BOT_TOKEN   = os.environ.get("BOT_TOKEN","")
 ELS_CHAT_ID = os.environ.get("CHAT_ID","")
 FRED_KEY    = os.environ.get("FRED_API_KEY","")
 TV_USER     = os.environ.get("TV_USERNAME","")
@@ -21,11 +21,12 @@ else:                    SES="morning"
 YF_MAP = {
   "KOSPI200":"^KS200","NKY225":"^N225","HSCEI":"^HSCE",
   "SX5E":"^STOXX50E","SPX":"^GSPC","MXWO":"URTH","MXEF":"EEM",
-  "ES1":"ES=F","FESX1":"FESX=F","NIY1":"NIY=F",
+  "ES1":"ES=F","SX5E_fut":"^STOXX50E","NIY1":"NIY=F",
   "USDKRW":"KRW=X","JPYKRW":"JPYKRW=X","EURKRW":"EURKRW=X",
   "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","DXY":"DX-Y.NYB",
   "WTI":"CL=F","BRENT":"BZ=F","GOLD":"GC=F","BTC":"BTC-USD",
   "VIX":"^VIX","VIX3M":"^VIX3M","VIX6M":"^VIX6M","VIX1Y":"^VIX1Y",
+  "VKOSPI":"^VKOSPI",
   "UST10Y":"^TNX","UST30Y":"^TYX",
 }
 TV_MAP = {
@@ -33,7 +34,7 @@ TV_MAP = {
   "KTB3Y":("KR03Y","TVC"),"KTB10Y":("KR10Y","TVC"),"KTB30Y":("KR30Y","TVC"),
   "JGB10Y":("JP10Y","TVC"),"JGB30Y":("JP30Y","TVC"),
   "BUND10Y":("DE10Y","TVC"),"GILT10Y":("GB10Y","TVC"),"OAT10Y":("FR10Y","TVC"),
-  "VKOSPI":("VKOSPI","KRX"),"V2X":("V2TX","EUREX"),
+  "V2X":("V2TX","EUREX"),
 }
 FRED_MAP = {
   "UST2Y":"DGS2","UST10Y":"DGS10","UST30Y":"DGS30",
@@ -103,7 +104,7 @@ def build(yf_d,tv_d,ses):
   if ses=="morning":
     euus=[("SX5E","SX5E"),("SPX","SPX")]
   else:
-    euus=[("SX5E선물","FESX1"),("SPX선물","ES1")]
+    euus=[("SX5E","SX5E"),("SPX선물","ES1")]
   for lbl2,k in asia+euus+[("MXWO","MXWO"),("MXEF","MXEF")]:
     v,c=yf_d.get(k,(None,None))
     L.append(f"{ae(c)}`{lbl2:<12}` {fp(v,c)}")
@@ -142,7 +143,8 @@ def build(yf_d,tv_d,ses):
     L.append(f"{ae(c)}`{lbl2:<8}` {fp(v,c)}")
   for lbl2,k in [("VIX","VIX"),("VIX3M","VIX3M"),("VIX6M","VIX6M"),("VIX1Y","VIX1Y"),
                   ("VKOSPI","VKOSPI"),("V2X","V2X")]:
-    d=tv_d.get(k) if k in["VKOSPI","V2X"] else yf_d.get(k,(None,None))
+    # VKOSPI → yfinance, V2X → tvDatafeed (없으면 생략)
+    d=tv_d.get(k,(None,None)) if k=="V2X" else yf_d.get(k,(None,None))
     v,c=(d if d else (None,None))
     L.append(f"{ae(c)}`{lbl2:<8}` {fp(v,c)}")
   L.append("")
