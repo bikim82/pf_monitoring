@@ -1,6 +1,6 @@
 name: 아이 PF 모닝 알람
 
-on:
+on: 
   schedule:
     # 매일 오전 7시 KST = UTC 21:30 (전날)
     - cron: '30 21 * * *'
