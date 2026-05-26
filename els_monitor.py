@@ -6,7 +6,7 @@ import yfinance as yf
 import pandas as pd
 
 BOT_TOKEN   = os.environ.get("BOT_TOKEN","")
-ELS_CHAT_ID = os.environ.get("CHAT_ID","")
+ELS_CHAT_ID = os.environ.get("ELS_CHAT_ID","")
 FRED_KEY    = os.environ.get("FRED_API_KEY","")
 TV_USER     = os.environ.get("TV_USERNAME","")
 TV_PASS     = os.environ.get("TV_PASSWORD","")
