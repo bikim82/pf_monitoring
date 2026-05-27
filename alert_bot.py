@@ -114,10 +114,18 @@ def analyze(p):
         return None
 
 def get_fx():
+    """현재 환율 + 과거 환율 반환 (환율효과 포함 손익 계산용)"""
     try:
-        h=yf.Ticker("KRW=X").history(period="2d")
-        return round(float(h["Close"].iloc[-1]),1)
-    except: return 1520.0
+        h = yf.Ticker("KRW=X").history(period="3mo", auto_adjust=True)
+        if h.empty or len(h)<2: return 1520.0, 1520.0, 1520.0, 1520.0
+        cl = h["Close"].dropna()
+        cur  = round(float(cl.iloc[-1]), 2)
+        d1   = round(float(cl.iloc[-2]),  2) if len(cl)>=2  else cur
+        wk   = round(float(cl.iloc[-6]),  2) if len(cl)>=6  else cur
+        mo   = round(float(cl.iloc[-23]), 2) if len(cl)>=23 else cur
+        return cur, d1, wk, mo
+    except:
+        return 1520.0, 1520.0, 1520.0, 1520.0
 
 # ═══════════════════════════════════════
 #  메시지 포맷
@@ -128,10 +136,57 @@ def fp(v, sign=True):
 
 CLOUD_E = {"above":"☁️↑","inside":"☁️≈","below":"☁️↓"}
 
-def build_msg(results, fx, date_str):
+def calc_pnl(results, fx, fx_d1=None, fx_wk=None, fx_mo=None):
+    """전일/주간/월간 원화 손익 — 환율 변동 효과 포함"""
+    fx_d1 = fx_d1 or fx
+    fx_wk = fx_wk or fx
+    fx_mo = fx_mo or fx
+    cur = yd = wk = mo = 0.0
+    for r in results:
+        if not r: continue
+        p_obj = next((p for p in PORTFOLIO if p['t']==r['ticker']), None)
+        if not p_obj: continue
+        shares = p_obj['s']
+        krw    = p_obj['krw']
+        price  = r['price']
+        # 현재 원화가치
+        cur += shares * price * (1.0 if krw else fx)
+        # 과거 USD 가격 = 현재가 / (1 + 수익률%)
+        # 과거 원화가치 = 과거USD가격 × 과거환율
+        p_yd = price/(1+r['chg']/100)   if r.get('chg') is not None else price
+        p_wk = price/(1+r['wk']/100)    if r.get('wk')  is not None else price
+        p_mo = price/(1+r['mo']/100)    if r.get('mo')  is not None else price
+        yd += shares * p_yd * (1.0 if krw else fx_d1)
+        wk += shares * p_wk * (1.0 if krw else fx_wk)
+        mo += shares * p_mo * (1.0 if krw else fx_mo)
+    return {
+        'cur':   round(cur),
+        'd1':    round(cur - yd),
+        'd1pct': round((cur-yd)/yd*100, 2) if yd else None,
+        'wk':    round(cur - wk),
+        'wkpct': round((cur-wk)/wk*100, 2) if wk else None,
+        'mo':    round(cur - mo),
+        'mopct': round((cur-mo)/mo*100, 2) if mo else None,
+    }
+
+def pnl_str(v, pct):
+    if v is None: return "—"
+    s = "+" if v >= 0 else ""
+    e = "🟢" if v >= 0 else "🔴"
+    p = f" ({s}{pct}%)" if pct is not None else ""
+    return f"{e} {s}₩{abs(v):,}{p}"
+
+def build_msg(results, fx, date_str, fx_d1=None, fx_wk=None, fx_mo=None):
     now_kst = (datetime.utcnow()+timedelta(hours=9)).strftime("%Y-%m-%d %H:%M KST")
+    pnl = calc_pnl(results, fx, fx_d1, fx_wk, fx_mo)
     lines   = [f"📊 *아이 PF 모닝 리포트*",
-               f"_{date_str} 전일종가 기준_  |  환율 ₩{fx:,.0f}",""]
+               f"_{date_str} 전일종가 기준_  |  환율 ₩{fx:,.0f}","",
+               "💰 *포트폴리오 손익 (원화)*",
+               f"  전일: {pnl_str(pnl['d1'], pnl['d1pct'])}",
+               f"  주간: {pnl_str(pnl['wk'], pnl['wkpct'])}",
+               f"  월간: {pnl_str(pnl['mo'], pnl['mopct'])}",
+               f"  총평가액: ₩{pnl['cur']:,}",
+               ""]
 
     # 급등락
     surges = [(r,r["chg"]) for r in results if r and r["chg"]>=SURGE_UP]
@@ -208,15 +263,15 @@ def send(text):
 def main():
     now = datetime.utcnow()+timedelta(hours=9)
     print(f"[{now.strftime('%Y-%m-%d %H:%M KST')}] 모닝 알람 시작")
-    fx = get_fx()
-    print(f"환율: ₩{fx:,.1f}")
+    fx, fx_d1, fx_wk, fx_mo = get_fx()
+    print(f"환율: ₩{fx:,.1f}  (전일 ₩{fx_d1:,.1f} / 주간 ₩{fx_wk:,.1f} / 월간 ₩{fx_mo:,.1f})")
     results=[]
     for p in PORTFOLIO:
         print(f"  {p['t']}...", end=" ", flush=True)
         r=analyze(p)
         results.append(r)
         print(f"${r['price']:.2f} ({r['chg']:+.2f}%)" if r else "실패")
-    msg = build_msg(results, fx, now.strftime("%Y년 %m월 %d일"))
+    msg = build_msg(results, fx, now.strftime("%Y년 %m월 %d일"), fx_d1, fx_wk, fx_mo)
     send(msg)
 
 if __name__=="__main__":

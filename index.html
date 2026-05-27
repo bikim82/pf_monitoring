@@ -51,7 +51,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--fo
 .pill.nh{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.2);color:var(--amber)}
 
 /* Summary */
-.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:7px;padding:12px 18px;border-bottom:1px solid var(--border)}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px;padding:12px 18px;border-bottom:1px solid var(--border)}
 .sc{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 12px}
 .slbl{font-size:9.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
 .sval{font-size:15px;font-weight:700;font-family:var(--mono)}
@@ -259,6 +259,7 @@ const MAJOR_IB = ['JP Morgan','JPMorgan','Goldman Sachs','Morgan Stanley',
 //  State
 // ═══════════════════════════════════════════════
 let FX = 1520;
+let FX_HIST = {d1:null, wk:null, mo:null}; // 과거 환율 저장
 const RES = {};
 const COLS = ['#58a6ff','#3fb950','#bc8cff','#d29922','#f85149',
               '#39d353','#fb923c','#ec4899','#60a5fa','#34d399',
@@ -323,8 +324,29 @@ async function fx2(url, ms=9000){
 }
 
 async function loadFX(){
+  // 현재 환율
   const d=await fx2('https://open.er-api.com/v6/latest/USD',5000);
   if(d?.rates?.KRW) FX=d.rates.KRW;
+  // KRW=X 히스토리로 과거 환율 계산
+  try{
+    const h=await fx2('https://query2.finance.yahoo.com/v8/finance/chart/KRW=X?interval=1d&range=3mo',7000);
+    if(h?.chart?.result?.[0]){
+      const cl=h.chart.result[0].indicators.quote[0].close;
+      const valid=cl.map((v,i)=>v!=null?{v,i}:null).filter(Boolean);
+      if(valid.length>=2){
+        const cur=valid[valid.length-1].v;
+        // 전일
+        const yd=valid[valid.length-2].v;
+        FX_HIST.d1=yd||null;
+        // 주간 (약 5거래일 전)
+        if(valid.length>=6) FX_HIST.wk=valid[valid.length-6].v;
+        // 월간 (약 22거래일 전)
+        if(valid.length>=23) FX_HIST.mo=valid[valid.length-23].v;
+        // 현재 환율도 업데이트 (Yahoo 기준)
+        if(!d?.rates?.KRW) FX=cur;
+      }
+    }
+  }catch{}
 }
 
 // ═══════════════════════════════════════════════
@@ -689,6 +711,37 @@ function renderAlerts(){
 function valKRW(r){ return r.krw ? r.s*r.price : r.s*r.price*FX; }
 function valUSD(r){ return r.krw ? r.s*r.price/FX : r.s*r.price; }
 
+// 포트폴리오 손익 계산 (전일/주간/월간)
+function calcPnL(){
+  let cur=0, yd=0, wk=0, mo=0;
+  PORTFOLIO.forEach(p=>{
+    const r=RES[p.t]; if(!r||!r.price) return;
+    const fxCur = r.krw ? 1 : FX;                       // 현재 환율
+    const fxYd  = r.krw ? 1 : (FX_HIST.d1||FX);        // 전일 환율
+    const fxWk  = r.krw ? 1 : (FX_HIST.wk||FX);        // 주간 환율
+    const fxMo  = r.krw ? 1 : (FX_HIST.mo||FX);        // 월간 환율
+    const val = r.s * r.price * fxCur;
+    cur += val;
+    // 과거 가격(USD) = 현재가 / (1 + 수익률%)
+    // 과거 원화가치 = 과거가격USD × 과거환율
+    const priceYd = r.chg!=null  ? r.price/(1+r.chg/100)     : r.price;
+    const priceWk = r.rets?.wk!=null ? r.price/(1+r.rets.wk/100) : r.price;
+    const priceMo = r.rets?.mo!=null ? r.price/(1+r.rets.mo/100) : r.price;
+    yd += r.s * priceYd * fxYd;
+    wk += r.s * priceWk * fxWk;
+    mo += r.s * priceMo * fxMo;
+  });
+  return{
+    cur:  Math.round(cur),
+    d1:   Math.round(cur - yd),
+    d1pct:yd>0 ? ((cur-yd)/yd*100).toFixed(2) : null,
+    wk:   Math.round(cur - wk),
+    wkpct:wk>0 ? ((cur-wk)/wk*100).toFixed(2) : null,
+    mo:   Math.round(cur - mo),
+    mopct:mo>0 ? ((cur-mo)/mo*100).toFixed(2) : null,
+  };
+}
+
 function renderSummary(){
   let totKRW=0,okCnt=0,highRisk=0;
   PORTFOLIO.forEach(p=>{
@@ -716,11 +769,32 @@ function renderSummary(){
     if(r.risk.rsi&&r.risk.rsi>75) alertList.push({t:p.t,n:p.n,sig:'📈 RSI '+r.risk.rsi+' 과매수'});
   });
 
+  const pnl = calcPnL();
+  function pnlStr(v,pct){
+    if(v==null) return '—';
+    const col=v>=0?'var(--green)':'var(--red)';
+    const s=v>=0?'+':'';
+    const p=pct!=null?` (${v>=0?'+':''}${pct}%)`:'';
+    return `<span style="color:${col};font-size:13px;font-weight:700;font-family:var(--mono)">${s}₩${Math.abs(v).toLocaleString('ko')}${p}</span>`;
+  }
+
   document.getElementById('summary').innerHTML=`
-    <div class="sc">
+    <div class="sc" style="grid-column:1/-1">
       <div class="slbl">추정 총평가액</div>
-      <div class="sval" style="font-size:14px">₩${Math.round(totKRW).toLocaleString('ko')}</div>
+      <div class="sval" style="font-size:16px">₩${Math.round(totKRW).toLocaleString('ko')}</div>
       <div style="font-size:9.5px;color:var(--t3);margin-top:2px">≈ $${Math.round(totKRW/FX).toLocaleString()} · 환율 ₩${Math.round(FX)}</div>
+    </div>
+    <div class="sc">
+      <div class="slbl">📅 전일 손익</div>
+      <div style="margin-top:3px">${pnlStr(pnl.d1, pnl.d1pct)}</div>
+    </div>
+    <div class="sc">
+      <div class="slbl">📅 주간 손익</div>
+      <div style="margin-top:3px">${pnlStr(pnl.wk, pnl.wkpct)}</div>
+    </div>
+    <div class="sc">
+      <div class="slbl">📅 월간 손익</div>
+      <div style="margin-top:3px">${pnlStr(pnl.mo, pnl.mopct)}</div>
     </div>
     <div class="sc"><div class="slbl">조회 완료</div><div class="sval">${okCnt}<span style="font-size:11px;color:var(--t3)"> / ${PORTFOLIO.length}</span></div></div>
     <div class="sc" style="cursor:pointer" onclick="showRiskDetail()">
