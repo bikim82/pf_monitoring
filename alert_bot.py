@@ -144,11 +144,13 @@ def calc_pnl(results, fx, fx_d1=None, fx_wk=None, fx_mo=None):
     cur = yd = wk = mo = 0.0
     for r in results:
         if not r: continue
-        p_obj = next((p for p in PORTFOLIO if p['t']==r['ticker']), None)
+        tk = r.get('t') or r.get('ticker')
+        p_obj = next((p for p in PORTFOLIO if p['t']==tk), None)
         if not p_obj: continue
         shares = p_obj['s']
         krw    = p_obj['krw']
-        price  = r['price']
+        price  = r.get('price'); 
+        if not price: continue
         # 현재 원화가치
         cur += shares * price * (1.0 if krw else fx)
         # 과거 USD 가격 = 현재가 / (1 + 수익률%)
