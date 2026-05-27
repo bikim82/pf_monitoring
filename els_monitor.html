@@ -342,7 +342,7 @@ async function fetchFull(ticker){
   const tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
   const sa=new Array(n+26).fill(NaN),sb=new Array(n+26).fill(NaN);
   for(let i=0;i<n;i++){
-    const hv=v=>v!=null&&!isNaN(v);
+    const hv=v=>v!=null&&!isNaN(v)&&v>0;  // 0 제외 (지수 이상값 방지)
     if(i>=8){const hs=hi.slice(i-8,i+1).filter(hv),ls=lo.slice(i-8,i+1).filter(hv);if(hs.length&&ls.length){const h=Math.max(...hs),l=Math.min(...ls);tn[i]=(h+l)/2;}}
     if(i>=25){const hs=hi.slice(i-25,i+1).filter(hv),ls=lo.slice(i-25,i+1).filter(hv);if(hs.length&&ls.length){const h=Math.max(...hs),l=Math.min(...ls);kj[i]=(h+l)/2;}}
     if(!isNaN(tn[i])&&!isNaN(kj[i]))sa[i+26]=(tn[i]+kj[i])/2;
@@ -399,7 +399,7 @@ async function fetchFull(ticker){
     risk:{score:rs,vol:+vol.toFixed(1),rsi:rsiV},
     lv:{h52:+h52.toFixed(2),l52:+l52.toFixed(2),rp},
     chart:{ohlc,m50:slN(m50v),m100:slN(m100v),m250:m250v?slN(m250v):[],
-           tn:slN(tn),kj:slN(kj),sa:slX(sa.slice(0,n)),sb:slX(sb.slice(0,n))},
+           tn:slN(tn),kj:slN(kj),sa:slX(sa),sb:slX(sb)},  // sa/sb 전체 (미래 구름 포함)
   };
 }
 
