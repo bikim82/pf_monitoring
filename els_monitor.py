@@ -6,7 +6,7 @@ import yfinance as yf
 import pandas as pd
 
 BOT_TOKEN = os.environ.get("ELS_BOT_TOKEN", "")
-ELS_CHAT_ID = os.environ.get("CHAT_ID", "")
+CHAT_ID = os.environ.get("CHAT_ID", "")
 FRED_KEY = os.environ.get("FRED_API_KEY", "")
 TV_USER = os.environ.get("TV_USERNAME", "")
 TV_PASS = os.environ.get("TV_PASSWORD", "")
@@ -153,10 +153,10 @@ def build(yf_d,tv_d,ses):
   return "\n".join(L)
 
 def send(text):
-  if not BOT_TOKEN or not ELS_CHAT_ID:
+  if not BOT_TOKEN or not CHAT_ID:
     print("TOKEN/CHAT_ID 없음:\n"); print(text); return
   r=requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-    json={"chat_id":ELS_CHAT_ID,"text":text,"parse_mode":"Markdown",
+    json={"chat_id":CHAT_ID,"text":text,"parse_mode":"Markdown",
           "disable_web_page_preview":True},timeout=15)
   print("✅ 전송 완료" if r.status_code==200 else f"❌ {r.status_code}: {r.text[:200]}")
 
