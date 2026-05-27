@@ -306,17 +306,31 @@ async function fetchFull(ticker){
   const cl=q.close, hi=q.high, lo=q.low, op=q.open;
   if(!cl?.length||cl.length<5)return null;
 
-  const price=cl[cl.length-1], prev=cl[cl.length-2]||price;
+  // 유효한 마지막 값 찾기 (null 제거 — 한국주식/지수 대응)
+  const validIdx=cl.map((v,i)=>v!=null?i:-1).filter(i=>i>=0);
+  if(validIdx.length<5) return null;
+  const lastI=validIdx[validIdx.length-1];
+  const prevI=validIdx[validIdx.length-2];
+  const price=cl[lastI], prev=cl[prevI]||price;
   const chg1d=+((price-prev)/prev*100).toFixed(2);
 
-  // 주간/월간
-  const wkP=cl.length>=6?cl[cl.length-6]:null;
-  const moP=cl.length>=23?cl[cl.length-23]:null;
+  // 주간/월간 (유효 인덱스 기준)
+  const wkI=validIdx.length>=6?validIdx[validIdx.length-6]:null;
+  const moI=validIdx.length>=22?validIdx[validIdx.length-22]:null;
+  const wkP=wkI!=null?cl[wkI]:null;
+  const moP=moI!=null?cl[moI]:null;
   const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
   const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
 
-  // MA
-  function sma(arr,w){const o=new Array(arr.length).fill(NaN);for(let i=w-1;i<arr.length;i++){let s=0;for(let j=i-w+1;j<=i;j++)s+=arr[j];o[i]=s/w;}return o;}
+  // MA (null-safe)
+  function sma(arr,w){
+    const o=new Array(arr.length).fill(NaN);
+    for(let i=w-1;i<arr.length;i++){
+      let s=0,cnt=0;
+      for(let j=i-w+1;j<=i;j++){if(arr[j]!=null&&!isNaN(arr[j])){s+=arr[j];cnt++;}}
+      if(cnt>=w*0.8)o[i]=s/cnt; // 80% 이상 유효하면 계산
+    }return o;
+  }
   const m50v=sma(cl,50),m100v=sma(cl,100),m250v=cl.length>=250?sma(cl,250):null;
   const ma50=m50v[cl.length-1],ma100=m100v[cl.length-1];
   const ma250=m250v?m250v[cl.length-1]:NaN;
@@ -328,19 +342,20 @@ async function fetchFull(ticker){
   const tn=new Array(n).fill(NaN),kj=new Array(n).fill(NaN);
   const sa=new Array(n+26).fill(NaN),sb=new Array(n+26).fill(NaN);
   for(let i=0;i<n;i++){
-    if(i>=8){const h=Math.max(...hi.slice(i-8,i+1)),l=Math.min(...lo.slice(i-8,i+1));tn[i]=(h+l)/2;}
-    if(i>=25){const h=Math.max(...hi.slice(i-25,i+1)),l=Math.min(...lo.slice(i-25,i+1));kj[i]=(h+l)/2;}
+    const hv=v=>v!=null&&!isNaN(v);
+    if(i>=8){const hs=hi.slice(i-8,i+1).filter(hv),ls=lo.slice(i-8,i+1).filter(hv);if(hs.length&&ls.length){const h=Math.max(...hs),l=Math.min(...ls);tn[i]=(h+l)/2;}}
+    if(i>=25){const hs=hi.slice(i-25,i+1).filter(hv),ls=lo.slice(i-25,i+1).filter(hv);if(hs.length&&ls.length){const h=Math.max(...hs),l=Math.min(...ls);kj[i]=(h+l)/2;}}
     if(!isNaN(tn[i])&&!isNaN(kj[i]))sa[i+26]=(tn[i]+kj[i])/2;
-    if(i>=51){const h=Math.max(...hi.slice(i-51,i+1)),l=Math.min(...lo.slice(i-51,i+1));sb[i+26]=(h+l)/2;}
+    if(i>=51){const hs=hi.slice(i-51,i+1).filter(hv),ls=lo.slice(i-51,i+1).filter(hv);if(hs.length&&ls.length){const h=Math.max(...hs),l=Math.min(...ls);sb[i+26]=(h+l)/2;}}
   }
-  const ltn=tn[n-1],lkj=kj[n-1],lsa=sa[n-1],lsb=sb[n-1];
+  const ltn=tn[lastI],lkj=kj[lastI],lsa=sa[lastI],lsb=sb[lastI];
   const ctop=!isNaN(lsa)&&!isNaN(lsb)?Math.max(lsa,lsb):NaN;
   const cbot=!isNaN(lsa)&&!isNaN(lsb)?Math.min(lsa,lsb):NaN;
   const cp=isNaN(ctop)?'i':price>ctop?'a':price<cbot?'b':'i';
   const tkSig=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
 
   // RSI
-  const rets=cl.slice(1).map((v,i)=>cl[i]?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
+  const rets=cl.slice(1).map((v,i)=>(v!=null&&cl[i]!=null&&cl[i]>0)?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
   const avgR=rets.reduce((a,b)=>a+b,0)/rets.length;
   const vol=Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100;
   const rsiV=(()=>{const d=cl.slice(-15).map((v,i,a)=>i>0?v-a[i-1]:NaN).filter(v=>!isNaN(v));
@@ -349,7 +364,7 @@ async function fetchFull(ticker){
     return l===0?100:+(100-100/(1+g/l)).toFixed(1);})();
 
   // 52주
-  const h52=Math.max(...hi.filter(v=>v)),l52=Math.min(...lo.filter(v=>v));
+  const h52=Math.max(...hi.filter(v=>v!=null&&v>0)),l52=Math.min(...lo.filter(v=>v!=null&&v>0));
   const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
 
   // 위험도
@@ -368,10 +383,13 @@ async function fetchFull(ticker){
   const fuTs=[];let nxt=ts[ts.length-1];
   while(fuTs.length<44){nxt+=86400;const dw=new Date(nxt*1000).getUTCDay();if(dw>0&&dw<6)fuTs.push(nxt);}
   const extTs=[...ts,...fuTs];
-  const slN=arr=>ts.map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null).filter(Boolean);
+  const slN=arr=>ts.map((t,i)=>(arr[i]!=null&&!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null).filter(Boolean);
   const slX=arr=>extTs.map((t,i)=>(!isNaN(arr[i])&&t>=prevYearStart)?{time:t,value:+arr[i].toFixed(4)}:null).filter(Boolean);
-  const ohlc=ts.map((t,i)=>{if(t<prevYearStart||isNaN(cl[i]))return null;
-    return{time:t,open:+op[i].toFixed(4),high:+hi[i].toFixed(4),low:+lo[i].toFixed(4),close:+cl[i].toFixed(4)};}).filter(Boolean);
+  const ohlc=ts.map((t,i)=>{
+    if(t<prevYearStart||cl[i]==null||isNaN(cl[i]))return null;
+    const o=op[i]||cl[i],h=hi[i]||cl[i],l=lo[i]||cl[i];
+    return{time:t,open:+o.toFixed(4),high:+h.toFixed(4),low:+l.toFixed(4),close:+cl[i].toFixed(4)};
+  }).filter(Boolean);
 
   return{
     price:+price.toFixed(4),chg1d,chgWk,chgMo,
