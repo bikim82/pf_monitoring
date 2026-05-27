@@ -2,7 +2,6 @@ name: ELS 모니터링 알람
 
 on:
   schedule:
-    - cron: '0 21 * * *'    # KST 06:00 (여유있게 30분 전)
     - cron: '30 21 * * *'   # KST 06:30
     - cron: '0 4 * * *'     # KST 13:00
     - cron: '0 9 * * *'     # KST 18:00
@@ -20,8 +19,8 @@ jobs:
       - run: pip install --upgrade --no-cache-dir git+https://github.com/rongardF/tvdatafeed.git
       - name: ELS 알람 실행
         env:
-          ELS_BOT_TOKEN:    ${{ secrets.ELS_BOT_TOKEN }}
-          CHAT_ID:  ${{ secrets.CHAT_ID }}
+          BOT_TOKEN:    ${{ secrets.ELS_BOT_TOKEN }}
+          ELS_CHAT_ID:  ${{ secrets.CHAT_ID }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           TV_USERNAME:  ${{ secrets.TV_USERNAME }}
           TV_PASSWORD:  ${{ secrets.TV_PASSWORD }}
