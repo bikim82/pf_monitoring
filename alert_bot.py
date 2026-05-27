@@ -230,7 +230,7 @@ def build_msg(results, fx, date_str, fx_d1=None, fx_wk=None, fx_mo=None):
         e = "🟢" if r["chg"]>=0 else "🔴"
         ce= CLOUD_E.get(r["cp"],"❓")+("↑"if r["tk"]=="bull"else "↓")
         lines.append(
-            f"{e}`{r['t']:<10}` {r['price']:.1f} {fp(r['chg'],True):>6} "
+            f"{e}`{r['t']:<10}` {r['price']:,.1f} {fp(r['chg'],True):>6} "
             f"{fp(r['wk'],True):>6} {fp(r['vs50'],True):>6}  {ce}"
         )
     lines.append("")
