@@ -23,7 +23,7 @@ YF_MAP = {
   "SX5E":"^STOXX50E","SPX":"^GSPC","MXWO":"URTH","MXEF":"EEM",
   "ES1":"ES=F","SX5E_fut":"^STOXX50E","NIY1":"NIY=F",
   "USDKRW":"KRW=X","JPYKRW":"JPYKRW=X","EURKRW":"EURKRW=X",
-  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","USDCNH2":"USDCNH=X","DXY":"DX-Y.NYB",
+  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","USDCNH_ALT":"USDCNH=X","USDCNH_ALT2":"6N=F","DXY":"DX-Y.NYB",
   "WTI":"CL=F","BRENT":"BZ=F","GOLD":"GC=F","BTC":"BTC-USD",
   "VIX":"^VIX","VIX3M":"^VIX3M","VIX6M":"^VIX6M","VIX1Y":"^VIX1Y",
   "VKOSPI":"^VKOSPI",
@@ -73,7 +73,7 @@ FRED_MAP = {
 # ─── 데이터 수집 ───────────────────────────
 def gyt(ticker):
   try:
-    h=yf.Ticker(ticker).history(period="3mo",auto_adjust=True)
+    h=yf.Ticker(ticker).history(period="6mo",auto_adjust=True)
     if h.empty or len(h)<2: return None,None
     v=round(float(h["Close"].iloc[-1]),4)
     p=round(float(h["Close"].iloc[-2]),4)
@@ -105,9 +105,9 @@ def analyze_stock(ticker):
         price = round(float(cl.iloc[-1]),4)
         prev  = round(float(cl.iloc[-2]),4)
         chg1d = round((price-prev)/prev*100,2) if prev else None
-        # 주간/월간/YTD
-        def hr(n): 
-            sub=cl.iloc[-n:] if len(cl)>=n else cl
+        # 주간/월간/YTD (days로 변수명 변경 — n 충돌 방지)
+        def hr(days):
+            sub=cl.iloc[-days:] if len(cl)>=days else cl
             return round((price-float(sub.iloc[0]))/float(sub.iloc[0])*100,1) if len(sub)>1 else None
         wk=hr(6); mo=hr(22)
         ytd=None
@@ -185,7 +185,7 @@ def build(yf_d,tv_d,ses):
   fx_list=[("USDKRW","USDKRW"),("JPYKRW","JPYKRW"),("EURKRW","EURKRW"),
            ("EURUSD","EURUSD"),("USDJPY","USDJPY"),("USDCNH","USDCNH"),("DXY","DXY")]
   for lbl2,k in fx_list:
-    dat=yf_d.get(k) or yf_d.get(k+"2",(None,None))  # USDCNH fallback
+    dat=yf_d.get(k) or yf_d.get(k+"_ALT") or yf_d.get(k+"_ALT2",(None,None))
     v,ch=(dat if dat else (None,None))
     L.append(f"{ae(ch)}`{lbl2:<10}` {fp(v,ch)}")
   L.append("")
@@ -193,18 +193,24 @@ def build(yf_d,tv_d,ses):
   # 금리
   L.append("📉 *금리*")
   rate_rows=[
-    ("UST", [("2Y","UST2Y"),("10Y","UST10Y"),("30Y","UST30Y")]),
-    ("KTB", [("3Y","KTB3Y"),("10Y","KTB10Y"),("30Y","KTB30Y")]),
-    ("JGB", [("10Y","JGB10Y"),("30Y","JGB30Y")]),
-    ("EUR", [("Bund","BUND10Y"),("Gilt","GILT10Y"),("OAT","OAT10Y")]),
+    ("🇺🇸UST", [("2Y","UST2Y"),("10Y","UST10Y"),("30Y","UST30Y")]),
+    ("🇰🇷KTB", [("3Y","KTB3Y"),("10Y","KTB10Y"),("30Y","KTB30Y")]),
+    ("🇯🇵JGB", [("10Y","JGB10Y"),("30Y","JGB30Y")]),
+    ("🇩🇪Bund",[("10Y","BUND10Y")]),
+    ("🇬🇧Gilt",[("10Y","GILT10Y")]),
+    ("🇫🇷OAT", [("10Y","OAT10Y")]),
   ]
   for grp,items in rate_rows:
     parts=[]
     for tenor,k in items:
-      d=tv_d.get(k) or (None,None)
-      v,c=d
-      parts.append(f"{tenor}:{fp(v,c,3,True) if v else '—'}")
-    L.append(f"`{grp:<5}` {' | '.join(parts)}")
+      dat=tv_d.get(k,(None,None))
+      v,ch=(dat if dat else (None,None))
+      if v:
+        bp_s=f"({ch:+.1f}bp)" if ch is not None else ""
+        parts.append(f"{tenor} `{v:.3f}%` {bp_s}")
+      else:
+        parts.append(f"{tenor} —")
+    L.append(f"{grp}: {' / '.join(parts)}")
   L.append("")
 
   # 원자재
@@ -231,9 +237,9 @@ def build(yf_d,tv_d,ses):
              ("PLTR","Palantir"),("MU","Micron"),("JPM","JPMorgan"),("GS","Goldman")]
 
     L.append("🇰🇷 *한국 주요주*")
-    L.append("`종목  현재가  전일  주간  1개월  YTD  MA50  구름`")
+    L.append("`종목       전일    주간   MA50  구름  1개월  YTD`")
     for t,n in KR_LIST:
-      r=analyze_stock(t)
+      r=analyze_full(t)
       if not r: continue
       pr=f"₩{int(r['price']):,}"
       d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
@@ -242,19 +248,19 @@ def build(yf_d,tv_d,ses):
       mos=f"{r['mo']:+.1f}%" if r['mo'] else "—"
       ytds=f"{r['ytd']:+.1f}%" if r['ytd'] else "—"
       e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
-      L.append(f"{e}`{n:<8}` ₩{r['price']:,.0f}{d1s:>6} {wks:>6} {mos:>6} {ytds:>6} {m50s:>6} {r['cloud']}{r['tk']} ")
+      L.append(f"{e}`{n:<8}` {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']} {mos:>6} {ytds:>6}")
     L.append("")
 
     L.append("🌐 *글로벌 주요주*")
-    L.append("`종목  현재가  전일  주간  1개월  YTD  MA50  구름`")
+    L.append("`종목       현재가   전일   주간   MA50  구름`")
     for t,n in GL_LIST:
-      r=analyze_stock(t)
+      r=analyze_full(t)
       if not r: continue
       d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
       wks=f"{r['wk']:+.1f}%" if r['wk'] else "—"
       m50s=f"{r['vs50']:+.1f}%" if r['vs50'] else "—"
       e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
-      L.append(f"{e}`{n:<8}` ${r['price']:,.1f}{d1s:>6} {wks:>6} {mos:>6} {ytds:>6} {m50s:>6} {r['cloud']}{r['tk']} ")
+      L.append(f"{e}`{n:<8}` ${r['price']:.1f} {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']}")
     L.append("")
 
   L.append(f"_소스: yfinance · tvDatafeed · FRED_")
