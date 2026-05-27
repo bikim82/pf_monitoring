@@ -311,7 +311,7 @@ async function fetchFull(ticker){
   const moP=cl.length>=23?cl[cl.length-23]:null;
   const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
   const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
-
+ 
   // MA
   function sma(arr,w){const o=new Array(arr.length).fill(NaN);for(let i=w-1;i<arr.length;i++){let s=0;for(let j=i-w+1;j<=i;j++)s+=arr[j];o[i]=s/w;}return o;}
   const m50v=sma(cl,50),m100v=sma(cl,100),m250v=cl.length>=250?sma(cl,250):null;
