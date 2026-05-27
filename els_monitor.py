@@ -4,9 +4,9 @@ import os,requests
 from datetime import datetime,timedelta
 import yfinance as yf
 import pandas as pd
- 
-BOT_TOKEN = os.environ.get("ELS_BOT_TOKEN", "")
-CHAT_ID = os.environ.get("CHAT_ID", "")
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+ELS_CHAT_ID = os.environ.get("ELS_CHAT_ID", "")
 FRED_KEY = os.environ.get("FRED_API_KEY", "")
 TV_USER = os.environ.get("TV_USERNAME", "")
 TV_PASS = os.environ.get("TV_PASSWORD", "")
@@ -23,11 +23,39 @@ YF_MAP = {
   "SX5E":"^STOXX50E","SPX":"^GSPC","MXWO":"URTH","MXEF":"EEM",
   "ES1":"ES=F","SX5E_fut":"^STOXX50E","NIY1":"NIY=F",
   "USDKRW":"KRW=X","JPYKRW":"JPYKRW=X","EURKRW":"EURKRW=X",
-  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","DXY":"DX-Y.NYB",
+  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"USDCNH=X","DXY":"DX-Y.NYB",
   "WTI":"CL=F","BRENT":"BZ=F","GOLD":"GC=F","BTC":"BTC-USD",
   "VIX":"^VIX","VIX3M":"^VIX3M","VIX6M":"^VIX6M","VIX1Y":"^VIX1Y",
   "VKOSPI":"^VKOSPI",
   "UST10Y":"^TNX","UST30Y":"^TYX",
+  # 한국주식
+  "KR_005930":"005930.KS",
+  "KR_000660":"000660.KS",
+  "KR_005380":"005380.KS",
+  "KR_066570":"066570.KS",
+  "KR_051910":"051910.KS",
+  "KR_005490":"005490.KS",
+  "KR_329180":"329180.KS",
+  "KR_016360":"016360.KS",
+  # 글로벌주식
+  "GL_NVDA":"NVDA",
+  "GL_AAPL":"AAPL",
+  "GL_TSLA":"TSLA",
+  "GL_AMZN":"AMZN",
+  "GL_TSM":"TSM",
+  "GL_AMD":"AMD",
+  "GL_MSFT":"MSFT",
+  "GL_META":"META",
+  "GL_GOOGL":"GOOGL",
+  "GL_INTC":"INTC",
+  "GL_AVGO":"AVGO",
+  "GL_PLTR":"PLTR",
+  "GL_MU":"MU",
+  "GL_ORCL":"ORCL",
+  "GL_ARM":"ARM",
+  "GL_UNH":"UNH",
+  "GL_JPM":"JPM",
+  "GL_GS":"GS",
 }
 TV_MAP = {
   "UST2Y":("US02Y","TVC"),"UST10Y":("US10Y","TVC"),"UST30Y":("US30Y","TVC"),
@@ -45,7 +73,7 @@ FRED_MAP = {
 # ─── 데이터 수집 ───────────────────────────
 def gyt(ticker):
   try:
-    h=yf.Ticker(ticker).history(period="5d",auto_adjust=True)
+    h=yf.Ticker(ticker).history(period="10d",auto_adjust=True)
     if h.empty or len(h)<2: return None,None
     v=round(float(h["Close"].iloc[-1]),4)
     p=round(float(h["Close"].iloc[-2]),4)
@@ -63,7 +91,7 @@ def gtv():
         if df is not None and len(df)>=2:
           v=round(float(df["close"].iloc[-1]),3)
           p=round(float(df["close"].iloc[-2]),3)
-          res[k]=(v,round(v-p,3))
+          res[k]=(v,round((v-p)*100,1))
       except: pass
   except: pass
   return res
@@ -78,7 +106,7 @@ def gfred(sid):
     if len(obs)>=2:
       v=round(float(obs[0]["value"]),3)
       p=round(float(obs[1]["value"]),3)
-      return v,round(v-p,3)
+      return v,round((v-p)*100,1)
   except: pass
   return None,None
 
@@ -87,7 +115,7 @@ def fp(v,c,dec=2,is_rate=False):
   if v is None: return "—"
   vs=f"{v:.{dec}f}"
   if c is None: return vs
-  if is_rate: cs=f"({c:+.3f}bp)"
+  if is_rate: cs=f"({c:+.1f}bp)"
   else:        cs=f"({c:+.2f}%)"
   return f"{vs} {cs}"
 def ae(c): return "🔺"if c and c>0 else"🔻"if c and c<0 else"  "
@@ -148,15 +176,43 @@ def build(yf_d,tv_d,ses):
     v,c=(d if d else (None,None))
     L.append(f"{ae(c)}`{lbl2:<8}` {fp(v,c)}")
   L.append("")
+  # 한국 주식 섹션 (아침에만)
+  if ses=="morning":
+    L.append("🇰🇷 *한국 주요주*")
+    L.append("`종목         전일`")
+    for t,n in [("005930.KS","삼성전자"),("000660.KS","SK하이닉스"),
+                ("005380.KS","현대차"),("066570.KS","LG전자"),
+                ("051910.KS","LG화학"),("005490.KS","포스코홀딩스"),
+                ("329180.KS","HD현대중공업"),("016360.KS","삼성증권")]:
+      k="KR_"+t.replace(".KS","")
+      v,chg=yf_d.get(k,(None,None))
+      if v:
+        pr=f"₩{int(v):,}"
+        L.append(f"{ae(chg)}`{n:<10}` {pr} {fp(None,chg) if chg else ''}")
+    L.append("")
+
+    L.append("🌐 *글로벌 주요주*")
+    L.append("`종목         현재가    전일`")
+    for t,n in [("NVDA","NVIDIA"),("AAPL","Apple"),("TSLA","Tesla"),
+                ("AMZN","Amazon"),("TSM","TSMC"),("AMD","AMD"),
+                ("MSFT","Microsoft"),("META","Meta"),("GOOGL","Alphabet"),
+                ("INTC","Intel"),("AVGO","Broadcom"),("PLTR","Palantir"),
+                ("MU","Micron"),("JPM","JPMorgan"),("GS","Goldman")]:
+      k="GL_"+t
+      v,chg=yf_d.get(k,(None,None))
+      if v:
+        L.append(f"{ae(chg)}`{n:<10}` ${v:.2f} ({chg:+.2f}%)" if chg else f"  `{n:<10}` ${v:.2f}")
+    L.append("")
+
   L.append(f"_소스: yfinance · tvDatafeed · FRED_")
   L.append("_⚠️ 참고용, 투자권유 아님_")
   return "\n".join(L)
 
 def send(text):
-  if not BOT_TOKEN or not CHAT_ID:
+  if not BOT_TOKEN or not ELS_CHAT_ID:
     print("TOKEN/CHAT_ID 없음:\n"); print(text); return
   r=requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-    json={"chat_id":CHAT_ID,"text":text,"parse_mode":"Markdown",
+    json={"chat_id":ELS_CHAT_ID,"text":text,"parse_mode":"Markdown",
           "disable_web_page_preview":True},timeout=15)
   print("✅ 전송 완료" if r.status_code==200 else f"❌ {r.status_code}: {r.text[:200]}")
 

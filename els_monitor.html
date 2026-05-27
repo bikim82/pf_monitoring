@@ -200,10 +200,17 @@ const FX_LIST = [
   {k:'DX-Y.NYB', n:'DXY'},
 ];
 const RATES_YF = [
-  {k:'^TNX', n:'UST 10Y'}, {k:'^TYX', n:'UST 30Y'},
-  {k:'KR10YT=RR', n:'KTB 10Y'}, {k:'JP10YT=RR', n:'JGB 10Y'},
-  {k:'DE10YT=RR', n:'Bund 10Y'},{k:'GB10YT=RR', n:'Gilt 10Y'},
-  {k:'FR10YT=RR', n:'OAT 10Y'},
+  {k:'US2YT=RR',  n:'UST 2Y',  grp:'UST', tenor:'2Y'},
+  {k:'^TNX',      n:'UST 10Y', grp:'UST', tenor:'10Y'},
+  {k:'^TYX',      n:'UST 30Y', grp:'UST', tenor:'30Y'},
+  {k:'KR03YT=RR', n:'KTB 3Y',  grp:'KTB', tenor:'3Y'},
+  {k:'KR10YT=RR', n:'KTB 10Y', grp:'KTB', tenor:'10Y'},
+  {k:'KR30YT=RR', n:'KTB 30Y', grp:'KTB', tenor:'30Y'},
+  {k:'JP10YT=RR', n:'JGB 10Y', grp:'JGB', tenor:'10Y'},
+  {k:'JP30YT=RR', n:'JGB 30Y', grp:'JGB', tenor:'30Y'},
+  {k:'DE10YT=RR', n:'Bund 10Y',grp:'EUR', tenor:'Bund'},
+  {k:'GB10YT=RR', n:'Gilt 10Y',grp:'EUR', tenor:'Gilt'},
+  {k:'FR10YT=RR', n:'OAT 10Y', grp:'EUR', tenor:'OAT'},
 ];
 const RATES_FRED = [
   {k:'UST2Y', s:'DGS2', n:'UST 2Y'},   {k:'UST10Y', s:'DGS10', n:'UST 10Y'},
@@ -311,7 +318,7 @@ async function fetchFull(ticker){
   const moP=cl.length>=23?cl[cl.length-23]:null;
   const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
   const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
- 
+
   // MA
   function sma(arr,w){const o=new Array(arr.length).fill(NaN);for(let i=w-1;i<arr.length;i++){let s=0;for(let j=i-w+1;j<=i;j++)s+=arr[j];o[i]=s/w;}return o;}
   const m50v=sma(cl,50),m100v=sma(cl,100),m250v=cl.length>=250?sma(cl,250):null;
@@ -473,7 +480,7 @@ async function fetchQuick(ticker){
 }
 
 async function fetchYFSimple(ticker){
-  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=30d`);
+  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`);
   if(!d?.chart?.result?.[0])return null;
   const cl=d.chart.result[0].indicators.quote[0].close;
   const valid=cl.filter(v=>v!=null);
@@ -588,21 +595,27 @@ function renderMacro(){
     </tr>`;});
   h+=`</tbody></table></div>`;
 
-  // 금리
-  h+=`<div class="sec-title">📉 금리</div>`;
-  h+=`<div class="tbl-wrap"><table style="min-width:420px"><thead><tr>
-    <th>종목</th><th>명칭</th><th>수익률(%)</th><th>전일(bp)</th>
+  // 금리 (그룹별 레이아웃)
+  h+=`<div class="sec-title">📉 금리 (Yahoo Finance)</div>`;
+  h+=`<div class="tbl-wrap"><table style="min-width:500px"><thead><tr>
+    <th>국가</th><th></th><th>단기</th><th>중기/장기①</th><th>장기②</th>
   </tr></thead><tbody>`;
-  [...RATES_YF,...RATES_FRED.filter(r=>D[r.k])].reduce((seen,r)=>{
-    if(seen.has(r.k))return seen;seen.add(r.k);
-    const d=D[r.k]||D[r.k];
-    h+=`<tr>
-      <td class="mono" style="font-weight:700">${r.k||r.n}</td><td>${r.n}</td>
-      <td class="mono">${d?fv(d.price,3)+'%':'—'}</td>
-      <td>${d&&d.chg1d!=null?`<span class="${d.chg1d>=0?'neg':'pos'} mono" style="font-size:11px">${d.chg1d>=0?'+':''}${fv(d.chg1d,3)}bp</span>`:'—'}</td>
-    </tr>`;
-    return seen;
-  },new Set());
+  const rGrps={UST:'🇺🇸 UST',KTB:'🇰🇷 KTB',JGB:'🇯🇵 JGB',EUR:'🇪🇺 EUR'};
+  ['UST','KTB','JGB','EUR'].forEach(grp=>{
+    const items=RATES_YF.filter(r=>r.grp===grp);
+    let row=`<td style="font-weight:700;white-space:nowrap">${rGrps[grp]}</td><td></td>`;
+    for(let i=0;i<3;i++){
+      const r=items[i];
+      if(!r){row+=`<td></td>`;continue;}
+      const d=D[r.k];
+      const vs=d?fv(d.price,3)+'%':'<span class="muted">—</span>';
+      const bp=d&&d.chg1d!=null;
+      const bpC=bp?(d.chg1d>=0?'var(--red)':'var(--green)'):'var(--t3)';
+      const bpS=bp?`<span style="color:${bpC};font-family:var(--mono);font-size:10px">${d.chg1d>=0?'+':''}${fv(d.chg1d,1)}bp</span>`:'';
+      row+=`<td><div style="font-size:9px;color:var(--t3)">${r.tenor}</div><div class="mono" style="font-size:12px">${vs}</div><div>${bpS}</div></td>`;
+    }
+    h+=`<tr>${row}</tr>`;
+  });
   h+=`</tbody></table></div>`;
 
   // 원자재
