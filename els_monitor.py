@@ -231,7 +231,7 @@ def build(yf_d,tv_d,ses):
              ("PLTR","Palantir"),("MU","Micron"),("JPM","JPMorgan"),("GS","Goldman")]
 
     L.append("🇰🇷 *한국 주요주*")
-    L.append("`종목       전일    주간   MA50  구름  1개월  YTD`")
+    L.append("`종목       현재가   전일    주간  1개월  YTD   MA50  구름`")
     for t,n in KR_LIST:
       r=analyze_stock(t)
       if not r: continue
@@ -242,11 +242,11 @@ def build(yf_d,tv_d,ses):
       mos=f"{r['mo']:+.1f}%" if r['mo'] else "—"
       ytds=f"{r['ytd']:+.1f}%" if r['ytd'] else "—"
       e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
-      L.append(f"{e}`{n:<8}` {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']} {mos:>6} {ytds:>6}")
+      L.append(f"{e}`{n:<8}` \{r['price']:.1f}{d1s:>6} {wks:>6} {mos:>6} {ytds:>6} {m50s:>6} {r['cloud']}{r['tk']} ")
     L.append("")
 
     L.append("🌐 *글로벌 주요주*")
-    L.append("`종목       현재가   전일   주간   MA50  구름`")
+    L.append("`종목       현재가   전일    주간  1개월  YTD   MA50  구름`")
     for t,n in GL_LIST:
       r=analyze_stock(t)
       if not r: continue
@@ -254,7 +254,7 @@ def build(yf_d,tv_d,ses):
       wks=f"{r['wk']:+.1f}%" if r['wk'] else "—"
       m50s=f"{r['vs50']:+.1f}%" if r['vs50'] else "—"
       e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
-      L.append(f"{e}`{n:<8}` ${r['price']:.1f} {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']}")
+      L.append(f"{e}`{n:<8}` ${r['price']:.1f}{d1s:>6} {wks:>6} {mos:>6} {ytds:>6} {m50s:>6} {r['cloud']}{r['tk']} ")
     L.append("")
 
   L.append(f"_소스: yfinance · tvDatafeed · FRED_")
