@@ -4,7 +4,7 @@ import os,requests
 from datetime import datetime,timedelta
 import yfinance as yf
 import pandas as pd
-
+ 
 BOT_TOKEN = os.environ.get("ELS_BOT_TOKEN", "")
 CHAT_ID = os.environ.get("CHAT_ID", "")
 FRED_KEY = os.environ.get("FRED_API_KEY", "")
