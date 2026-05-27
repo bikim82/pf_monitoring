@@ -133,6 +133,7 @@ tbody tr:hover td:first-child{background:var(--bg3)}
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="upd" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
       <button class="rbtn" id="rbtn" onclick="runLoad()">🔄 새로고침</button>
+      <button class="rbtn" onclick="showFredModal()" title="FRED API Key 설정">⚙️</button>
     </div>
   </div>
   <div class="tab-bar">
@@ -196,21 +197,23 @@ const INDICES_LIST = [
 const FX_LIST = [
   {k:'KRW=X',    n:'USD/KRW'},  {k:'JPYKRW=X', n:'JPY/KRW'},
   {k:'EURKRW=X', n:'EUR/KRW'},  {k:'EURUSD=X', n:'EUR/USD'},
-  {k:'JPY=X',    n:'USD/JPY'},  {k:'CNH=X',    n:'USD/CNH'},
+  {k:'JPY=X',    n:'USD/JPY'},  {k:'CNH=X',    n:'USD/CNH', alt:'USDCNH=X'},
   {k:'DX-Y.NYB', n:'DXY'},
 ];
 const RATES_YF = [
-  {k:'US2YT=RR',  n:'UST 2Y',  grp:'UST', tenor:'2Y'},
   {k:'^TNX',      n:'UST 10Y', grp:'UST', tenor:'10Y'},
   {k:'^TYX',      n:'UST 30Y', grp:'UST', tenor:'30Y'},
-  {k:'KR03YT=RR', n:'KTB 3Y',  grp:'KTB', tenor:'3Y'},
   {k:'KR10YT=RR', n:'KTB 10Y', grp:'KTB', tenor:'10Y'},
-  {k:'KR30YT=RR', n:'KTB 30Y', grp:'KTB', tenor:'30Y'},
   {k:'JP10YT=RR', n:'JGB 10Y', grp:'JGB', tenor:'10Y'},
-  {k:'JP30YT=RR', n:'JGB 30Y', grp:'JGB', tenor:'30Y'},
   {k:'DE10YT=RR', n:'Bund 10Y',grp:'EUR', tenor:'Bund'},
   {k:'GB10YT=RR', n:'Gilt 10Y',grp:'EUR', tenor:'Gilt'},
   {k:'FR10YT=RR', n:'OAT 10Y', grp:'EUR', tenor:'OAT'},
+]
+const RATES_FRED = [
+  {k:'UST2Y',  s:'DGS2',            n:'UST 2Y',  grp:'UST', tenor:'2Y'},
+  {k:'KTB3Y',  s:'IRLTLT01KRM156N', n:'KTB 3Y',  grp:'KTB', tenor:'3Y'},
+  {k:'KTB30Y', s:'IRLTLT01KRM156N', n:'KTB 30Y', grp:'KTB', tenor:'30Y'},
+  {k:'JGB30Y', s:'IRLTLT01JPM156N', n:'JGB 30Y', grp:'JGB', tenor:'30Y'},
 ];
 const RATES_FRED = [
   {k:'UST2Y', s:'DGS2', n:'UST 2Y'},   {k:'UST10Y', s:'DGS10', n:'UST 10Y'},
@@ -479,8 +482,11 @@ async function fetchQuick(ticker){
   };
 }
 
-async function fetchYFSimple(ticker){
-  const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`);
+async function fetchYFSimple(ticker, alt){
+  let d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`);
+  if(!d?.chart?.result?.[0] && alt){
+    d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${alt}?interval=1d&range=3mo`);
+  }
   if(!d?.chart?.result?.[0])return null;
   const cl=d.chart.result[0].indicators.quote[0].close;
   const valid=cl.filter(v=>v!=null);
@@ -535,7 +541,7 @@ async function runLoad(){
   const simpleList=[...FX_LIST,...RATES_YF,...COMM_LIST,...VOL_LIST];
   setL(75,'FX/금리/원자재 조회 중...');
   await Promise.all(simpleList.map(async item=>{
-    const r=await fetchYFSimple(item.k);
+    const r=await fetchYFSimple(item.k, item.alt);
     if(r)D[item.k]=r;
   }));
 
@@ -602,7 +608,8 @@ function renderMacro(){
   </tr></thead><tbody>`;
   const rGrps={UST:'🇺🇸 UST',KTB:'🇰🇷 KTB',JGB:'🇯🇵 JGB',EUR:'🇪🇺 EUR'};
   ['UST','KTB','JGB','EUR'].forEach(grp=>{
-    const items=RATES_YF.filter(r=>r.grp===grp);
+    const items=[...RATES_YF,...RATES_FRED].filter(r=>r.grp===grp)
+      .sort((a,b)=>['2Y','3Y','10Y','30Y','Bund','Gilt','OAT'].indexOf(a.tenor)-['2Y','3Y','10Y','30Y','Bund','Gilt','OAT'].indexOf(b.tenor));
     let row=`<td style="font-weight:700;white-space:nowrap">${rGrps[grp]}</td><td></td>`;
     for(let i=0;i<3;i++){
       const r=items[i];
@@ -932,6 +939,22 @@ function buildInfo(d,isKRW){
 }
 
 // FRED save
+window.showFredModal=function(){
+  var cur=localStorage.getItem('els_fred')||'';
+  showModal('<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:18px;width:100%;max-width:380px">'+
+    '<div style="font-size:13px;font-weight:700;margin-bottom:6px">⚙️ FRED API Key 설정</div>'+
+    '<div style="font-size:10px;color:var(--t3);margin-bottom:12px">UST 2Y · KTB 3Y/30Y · JGB 30Y 조회에 필요<br>fred.stlouisfed.org 무료 발급</div>'+
+    '<input id="fmi" type="password" value="'+cur+'" placeholder="32자리 키" style="width:100%;margin-bottom:10px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--t1);font-size:11px">'+
+    '<div style="display:flex;gap:8px">'+
+    '<button onclick="closeModal()" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--t2);font-size:12px;cursor:pointer">취소</button>'+
+    '<button onclick="window._applyFM()" style="flex:1;padding:9px;border-radius:6px;border:none;background:var(--blue);color:#000;font-size:12px;font-weight:700;cursor:pointer">저장</button>'+
+    '</div></div>');
+};
+window._applyFM=function(){
+  var v=document.getElementById('fmi')&&document.getElementById('fmi').value.trim();
+  if(v){fredKey=v;localStorage.setItem('els_fred',v);}
+  closeModal();runLoad();
+};
 window.saveFred=function(){
   const v=document.getElementById('fred-inp').value.trim();
   fredKey=v;localStorage.setItem('els_fred',v);runLoad();

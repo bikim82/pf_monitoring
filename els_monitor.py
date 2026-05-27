@@ -23,7 +23,7 @@ YF_MAP = {
   "SX5E":"^STOXX50E","SPX":"^GSPC","MXWO":"URTH","MXEF":"EEM",
   "ES1":"ES=F","SX5E_fut":"^STOXX50E","NIY1":"NIY=F",
   "USDKRW":"KRW=X","JPYKRW":"JPYKRW=X","EURKRW":"EURKRW=X",
-  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"USDCNH=X","DXY":"DX-Y.NYB",
+  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","USDCNH2":"USDCNH=X","DXY":"DX-Y.NYB",
   "WTI":"CL=F","BRENT":"BZ=F","GOLD":"GC=F","BTC":"BTC-USD",
   "VIX":"^VIX","VIX3M":"^VIX3M","VIX6M":"^VIX6M","VIX1Y":"^VIX1Y",
   "VKOSPI":"^VKOSPI",
@@ -73,7 +73,7 @@ FRED_MAP = {
 # ─── 데이터 수집 ───────────────────────────
 def gyt(ticker):
   try:
-    h=yf.Ticker(ticker).history(period="10d",auto_adjust=True)
+    h=yf.Ticker(ticker).history(period="3mo",auto_adjust=True)
     if h.empty or len(h)<2: return None,None
     v=round(float(h["Close"].iloc[-1]),4)
     p=round(float(h["Close"].iloc[-2]),4)
@@ -95,6 +95,48 @@ def gtv():
       except: pass
   except: pass
   return res
+
+def analyze_stock(ticker):
+    """종목 상세 분석: 가격, 수익률, MA50, 구름대"""
+    try:
+        h = yf.Ticker(ticker).history(period="18mo", auto_adjust=True)
+        if h.empty or len(h)<50: return None
+        cl,hi,lo = h["Close"].dropna(), h["High"], h["Low"]
+        price = round(float(cl.iloc[-1]),4)
+        prev  = round(float(cl.iloc[-2]),4)
+        chg1d = round((price-prev)/prev*100,2) if prev else None
+        # 주간/월간/YTD
+        def hr(n): 
+            sub=cl.iloc[-n:] if len(cl)>=n else cl
+            return round((price-float(sub.iloc[0]))/float(sub.iloc[0])*100,1) if len(sub)>1 else None
+        wk=hr(6); mo=hr(22)
+        ytd=None
+        try:
+            ref=cl[cl.index.year==cl.index[-1].year-1]
+            ytd=round((price-float(ref.iloc[-1]))/float(ref.iloc[-1])*100,1) if not ref.empty else None
+        except: pass
+        # MA50
+        ma50=round(float(cl.rolling(50).mean().iloc[-1]),2)
+        vs50=round((price-ma50)/ma50*100,1) if ma50 else None
+        # 일목 구름대 (간략)
+        n=len(cl); tn=kj=float('nan')
+        hi_=hi.reindex(cl.index); lo_=lo.reindex(cl.index)
+        if n>=26:
+            tn=float((hi_.rolling(9).max()+lo_.rolling(9).min()).iloc[-1]/2)
+            kj=float((hi_.rolling(26).max()+lo_.rolling(26).min()).iloc[-1]/2)
+        sa=sb=float('nan')
+        if n>=52:
+            sa=float(((hi_.rolling(9).max()+lo_.rolling(9).min())/2).shift(26).iloc[-1])
+            sb=float(((hi_.rolling(52).max()+lo_.rolling(52).min())/2).shift(26).iloc[-1])
+        import math
+        cloud='?' 
+        if not (math.isnan(sa) or math.isnan(sb)):
+            top,bot=max(sa,sb),min(sa,sb)
+            cloud='☁↑' if price>top else '☁↓' if price<bot else '☁≈'
+        tk='↑' if not (math.isnan(tn) or math.isnan(kj)) and tn>kj else '↓'
+        return {'price':price,'chg1d':chg1d,'wk':wk,'mo':mo,'ytd':ytd,
+                'vs50':vs50,'cloud':cloud,'tk':tk}
+    except: return None
 
 def gfred(sid):
   if not FRED_KEY: return None,None
@@ -128,7 +170,7 @@ def build(yf_d,tv_d,ses):
 
   # 주식지수
   L.append("📈 *주식 지수*")
-  asia=[("KOSPI200","KS200"),("NKY225","NKY"),("HSCEI","HSCEI")]
+  asia=[("KOSPI200","KOSPI200"),("NKY225","NKY225"),("HSCEI","HSCEI")]
   if ses=="morning":
     euus=[("SX5E","SX5E"),("SPX","SPX")]
   else:
@@ -143,8 +185,9 @@ def build(yf_d,tv_d,ses):
   fx_list=[("USDKRW","USDKRW"),("JPYKRW","JPYKRW"),("EURKRW","EURKRW"),
            ("EURUSD","EURUSD"),("USDJPY","USDJPY"),("USDCNH","USDCNH"),("DXY","DXY")]
   for lbl2,k in fx_list:
-    v,c=yf_d.get(k,(None,None))
-    L.append(f"{ae(c)}`{lbl2:<10}` {fp(v,c)}")
+    dat=yf_d.get(k) or yf_d.get(k+"2",(None,None))  # USDCNH fallback
+    v,ch=(dat if dat else (None,None))
+    L.append(f"{ae(ch)}`{lbl2:<10}` {fp(v,ch)}")
   L.append("")
 
   # 금리
@@ -176,32 +219,42 @@ def build(yf_d,tv_d,ses):
     v,c=(d if d else (None,None))
     L.append(f"{ae(c)}`{lbl2:<8}` {fp(v,c)}")
   L.append("")
-  # 한국 주식 섹션 (아침에만)
+  # 주식 섹션 (아침에만)
   if ses=="morning":
+    KR_LIST=[("005930.KS","삼성전자"),("000660.KS","SK하이닉스"),
+             ("005380.KS","현대차"),("066570.KS","LG전자"),
+             ("051910.KS","LG화학"),("005490.KS","포스코홀딩스"),
+             ("329180.KS","HD현대중공업"),("016360.KS","삼성증권")]
+    GL_LIST=[("NVDA","NVIDIA"),("AAPL","Apple"),("TSLA","Tesla"),("AMZN","Amazon"),
+             ("TSM","TSMC"),("AMD","AMD"),("MSFT","Microsoft"),("META","Meta"),
+             ("GOOGL","Alphabet"),("INTC","Intel"),("AVGO","Broadcom"),
+             ("PLTR","Palantir"),("MU","Micron"),("JPM","JPMorgan"),("GS","Goldman")]
+
     L.append("🇰🇷 *한국 주요주*")
-    L.append("`종목         전일`")
-    for t,n in [("005930.KS","삼성전자"),("000660.KS","SK하이닉스"),
-                ("005380.KS","현대차"),("066570.KS","LG전자"),
-                ("051910.KS","LG화학"),("005490.KS","포스코홀딩스"),
-                ("329180.KS","HD현대중공업"),("016360.KS","삼성증권")]:
-      k="KR_"+t.replace(".KS","")
-      v,chg=yf_d.get(k,(None,None))
-      if v:
-        pr=f"₩{int(v):,}"
-        L.append(f"{ae(chg)}`{n:<10}` {pr} {fp(None,chg) if chg else ''}")
+    L.append("`종목       전일    주간   MA50  구름  1개월  YTD`")
+    for t,n in KR_LIST:
+      r=analyze_stock(t)
+      if not r: continue
+      pr=f"₩{int(r['price']):,}"
+      d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
+      wks=f"{r['wk']:+.1f}%" if r['wk'] else "—"
+      m50s=f"{r['vs50']:+.1f}%" if r['vs50'] else "—"
+      mos=f"{r['mo']:+.1f}%" if r['mo'] else "—"
+      ytds=f"{r['ytd']:+.1f}%" if r['ytd'] else "—"
+      e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
+      L.append(f"{e}`{n:<8}` {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']} {mos:>6} {ytds:>6}")
     L.append("")
 
     L.append("🌐 *글로벌 주요주*")
-    L.append("`종목         현재가    전일`")
-    for t,n in [("NVDA","NVIDIA"),("AAPL","Apple"),("TSLA","Tesla"),
-                ("AMZN","Amazon"),("TSM","TSMC"),("AMD","AMD"),
-                ("MSFT","Microsoft"),("META","Meta"),("GOOGL","Alphabet"),
-                ("INTC","Intel"),("AVGO","Broadcom"),("PLTR","Palantir"),
-                ("MU","Micron"),("JPM","JPMorgan"),("GS","Goldman")]:
-      k="GL_"+t
-      v,chg=yf_d.get(k,(None,None))
-      if v:
-        L.append(f"{ae(chg)}`{n:<10}` ${v:.2f} ({chg:+.2f}%)" if chg else f"  `{n:<10}` ${v:.2f}")
+    L.append("`종목       현재가   전일   주간   MA50  구름`")
+    for t,n in GL_LIST:
+      r=analyze_stock(t)
+      if not r: continue
+      d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
+      wks=f"{r['wk']:+.1f}%" if r['wk'] else "—"
+      m50s=f"{r['vs50']:+.1f}%" if r['vs50'] else "—"
+      e="🟢" if r['chg1d'] and r['chg1d']>=0 else "🔴"
+      L.append(f"{e}`{n:<8}` ${r['price']:.1f} {d1s:>6} {wks:>6} {m50s:>6} {r['cloud']}{r['tk']}")
     L.append("")
 
   L.append(f"_소스: yfinance · tvDatafeed · FRED_")
