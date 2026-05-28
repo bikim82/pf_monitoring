@@ -1,10 +1,10 @@
 name: ELS 모니터링 알람
 
 on:
-  schedule:
-    - cron: '30 21 * * *'   # KST 06:30
-    - cron: '0 4 * * *'     # KST 13:00
-    - cron: '0 9 * * *'     # KST 18:00
+#  schedule:
+#    - cron: '30 21 * * *'   # KST 06:30
+#    - cron: '0 4 * * *'     # KST 13:00
+#    - cron: '0 9 * * *'     # KST 18:00
   workflow_dispatch:
 
 jobs:
