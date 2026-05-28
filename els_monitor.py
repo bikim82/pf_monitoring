@@ -105,11 +105,24 @@ def analyze_stock(ticker):
         price = round(float(cl.iloc[-1]),4)
         prev  = round(float(cl.iloc[-2]),4)
         chg1d = round((price-prev)/prev*100,2) if prev else None
-        # 주간/월간/YTD (days로 변수명 변경 — n 충돌 방지)
-        def hr(days):
-            sub=cl.iloc[-days:] if len(cl)>=days else cl
-            return round((price-float(sub.iloc[0]))/float(sub.iloc[0])*100,1) if len(sub)>1 else None
-        wk=hr(6); mo=hr(22)
+        # 주간: 직전금요일 / 월간: 전월말 기준
+        import datetime as _dt
+        last_date = cl.index[-1].date()
+        dow = last_date.weekday()  # 0=월...4=금
+        days_to_fri = (dow - 4) % 7 or 7
+        last_fri = last_date - _dt.timedelta(days=int(days_to_fri))
+        first_of_month = last_date.replace(day=1)
+        last_month_end = first_of_month - _dt.timedelta(days=1)
+
+        def price_at(td):
+            sub = cl[cl.index.date <= td]
+            return float(sub.iloc[-1]) if not sub.empty else None
+        def ret_at(td):
+            p = price_at(td)
+            return round((price-p)/p*100,1) if p and p>0 else None
+
+        wk = ret_at(last_fri)
+        mo = ret_at(last_month_end)
         ytd=None
         try:
             ref=cl[cl.index.year==cl.index[-1].year-1]
