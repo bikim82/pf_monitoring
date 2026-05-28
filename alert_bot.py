@@ -94,12 +94,26 @@ def analyze(p):
         rp     = round((price-l52)/(h52-l52)*100,1) if h52>l52 else 50
         c5100  = detect_cross(cl,50,100)
         c5250  = detect_cross(cl,50,250)
-        # 수익률
-        def hr(days):
-            tgt=cl.index[-1]-pd.Timedelta(days=days)
-            sub=cl[cl.index>=tgt]
-            return round((price-float(sub.iloc[0]))/float(sub.iloc[0])*100,1) if not sub.empty else None
-        wk,mo=hr(7),hr(30)
+        # 수익률: 직전 금요일 / 전월 말일 기준
+        last_date = cl.index[-1].date()
+        import datetime as _dt
+        # 직전 금요일
+        dow = last_date.weekday()  # 0=월...4=금,5=토,6=일
+        days_to_fri = (dow - 4) % 7 or 7  # 오늘이 금요일이면 7일 전
+        last_fri = last_date - _dt.timedelta(days=int(days_to_fri))
+        # 전월 말일
+        first_of_month = last_date.replace(day=1)
+        last_month_end = first_of_month - _dt.timedelta(days=1)
+
+        def price_at(target_date):
+            sub = cl[cl.index.date <= target_date]
+            return float(sub.iloc[-1]) if not sub.empty else None
+        def ret_at(target_date):
+            p = price_at(target_date)
+            return round((price-p)/p*100,1) if p and p>0 else None
+
+        wk = ret_at(last_fri)        # 직전 금요일 대비
+        mo = ret_at(last_month_end)  # 전월 말일 대비
         ytd=None
         try:
             ref=cl[cl.index.year==cl.index[-1].year-1]
@@ -230,7 +244,7 @@ def build_msg(results, fx, date_str, fx_d1=None, fx_wk=None, fx_mo=None):
         e = "🟢" if r["chg"]>=0 else "🔴"
         ce= CLOUD_E.get(r["cp"],"❓")+("↑"if r["tk"]=="bull"else "↓")
         lines.append(
-            f"{e}`{r['t']:<10}` {r['price']:,.1f} {fp(r['chg'],True):>6} "
+            f"{e}`{r['t']:<10}` {fp(r['chg'],True):>6} "
             f"{fp(r['wk'],True):>6} {fp(r['vs50'],True):>6}  {ce}"
         )
     lines.append("")
