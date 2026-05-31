@@ -329,12 +329,12 @@ async function fetchFull(ticker){
     var m=new Date(refDate.getFullYear(),refDate.getMonth(),0); m.setHours(0,0,0,0);
     return m.getTime()/1000;
   }
+  // target 이하 가장 최근 거래일 종가
   function priceAtTs(tsArr,clArr,targetTs){
-    var best=null,bestDiff=Infinity;
+    var best=null;
     for(var i=0;i<tsArr.length;i++){
       if(clArr[i]==null||isNaN(clArr[i]))continue;
-      var diff=Math.abs(tsArr[i]-targetTs);
-      if(diff<bestDiff){bestDiff=diff;best=clArr[i];}
+      if(tsArr[i]<=targetTs+86400) best=clArr[i];
     }
     return best;
   }

@@ -525,12 +525,12 @@ async function fetchTk(p){
   })();
 
   // 특정 타임스탬프에 가장 가까운 종가
+  // target 이하 가장 최근 거래일 종가 (가장 가까운 방식 → 오차 발생)
   function priceAt(targetTs){
-    var best=null,bestDiff=Infinity;
+    var best=null;
     for(var i=0;i<ts.length;i++){
       if(!cl[i]||isNaN(cl[i]))continue;
-      var diff=Math.abs(ts[i]-targetTs);
-      if(diff<bestDiff){bestDiff=diff;best=cl[i];}
+      if(ts[i]<=targetTs+86400) best=cl[i]; // target+1일 이하면 업데이트
     }
     return best;
   }
@@ -546,7 +546,7 @@ async function fetchTk(p){
   var ytdTs  = new Date(now.getFullYear()-1,11,31).getTime()/1000;
   var ytdP   = priceAt(ytdTs);
   var ytdRet = ytdP&&ytdP>0 ? +((price-ytdP)/ytdP*100).toFixed(1) : null;
-  var y1Ret  = retAt(Date.now()/1000 - 365*86400);
+  var y1Ret  = retAt(ts[ts.length-1] - 365*86400);  // ts[-1] 기준 1년 전
 
   // Chart series (last 120)
   // 직전년도 1/1부터 차트 표시
