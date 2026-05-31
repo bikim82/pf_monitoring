@@ -439,10 +439,31 @@ async function fetchQuick(ticker){
   const li=valid[valid.length-1],pi=valid[valid.length-2];
   const price=cl[li],prev=cl[pi]||price;
   const chg1d=+((price-prev)/prev*100).toFixed(2);
-  const wkP=valid.length>=6?cl[valid[valid.length-6]]:null;
-  const moP=valid.length>=22?cl[valid[valid.length-22]]:null;
-  const chgWk=wkP?+((price-wkP)/wkP*100).toFixed(2):null;
-  const chgMo=moP?+((price-moP)/moP*100).toFixed(2):null;
+  // 직전 금요일 / 전월 말일 기준 (index.html과 동일 방식)
+  function _fqLastFriTs(){
+    var refTs=ts[ts.length-1];
+    var d=new Date(refTs*1000); d.setHours(0,0,0,0);
+    for(var i=1;i<=10;i++){d.setDate(d.getDate()-1);if(d.getDay()===5)return d.getTime()/1000;}
+    return refTs-7*86400;
+  }
+  function _fqLastMoTs(){
+    var refTs=ts[ts.length-1];
+    var refDate=new Date(refTs*1000);
+    var m=new Date(refDate.getFullYear(),refDate.getMonth(),0); m.setHours(0,0,0,0);
+    return m.getTime()/1000;
+  }
+  function _fqPriceAt(targetTs){
+    var best=null;
+    for(var i=0;i<ts.length;i++){
+      if(cl[i]==null||isNaN(cl[i]))continue;
+      if(ts[i]<=targetTs+86400) best=cl[i];
+    }
+    return best;
+  }
+  const _wkP=_fqPriceAt(_fqLastFriTs());
+  const _moP=_fqPriceAt(_fqLastMoTs());
+  const chgWk=_wkP&&_wkP>0?+((price-_wkP)/_wkP*100).toFixed(2):null;
+  const chgMo=_moP&&_moP>0?+((price-_moP)/_moP*100).toFixed(2):null;
 
   function _smaQ(arr,w){const o=new Array(arr.length).fill(NaN);
     for(let i=w-1;i<arr.length;i++){let s=0,cnt=0;
