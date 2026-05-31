@@ -498,18 +498,28 @@ async function fetchTk(p){
   else if(dow===6) daysToFri=1;
   else daysToFri=dow+2; // 월=3, 화=4, 수=5, 목=6, 금=7
   // 더 간단하게: 오늘부터 뒤로 가면서 금요일(5) 찾기
+  // 직전 금요일: ts[-1](마지막 거래일) 기준 → alert_bot.py 방식과 동일
   var fridayTs=(function(){
-    var d=new Date(now); d.setHours(0,0,0,0);
+    // ts 배열의 마지막 타임스탬프를 기준으로 직전 금요일 탐색
+    var refTs = ts[ts.length-1];  // 마지막 거래일 타임스탬프
+    var d = new Date(refTs*1000); d.setHours(0,0,0,0);
+    var dow = d.getDay(); // 0=일,1=월,...,5=금,6=토
+    // (dow-5+7)%7 === 금요일로부터 며칠 지났는지, 0이면 7로 처리
+    var daysFromFri = dow===5 ? 7 : (dow+2)%7===0 ? 1 : (dow===0?2:dow===1?3:dow===2?4:dow===3?5:dow===4?6:7);
+    // 더 간단하게: d에서 뒤로 가면서 금요일(5) 찾기
+    var d2 = new Date(refTs*1000); d2.setHours(0,0,0,0);
     for(var i=1;i<=10;i++){
-      d.setDate(d.getDate()-1);
-      if(d.getDay()===5) return d.getTime()/1000;
+      d2.setDate(d2.getDate()-1);
+      if(d2.getDay()===5) return d2.getTime()/1000;
     }
-    return (Date.now()/1000)-7*86400;
+    return refTs - 7*86400;
   })();
 
   // 전월 말일 타임스탬프
+  // 전월 말일: ts[-1] 기준
   var lastMonthEnd=(function(){
-    var d=new Date(now.getFullYear(),now.getMonth(),0); // 이달 1일-1일 = 전월 마지막날
+    var refDate = new Date(ts[ts.length-1]*1000);
+    var d = new Date(refDate.getFullYear(), refDate.getMonth(), 0);
     d.setHours(0,0,0,0);
     return d.getTime()/1000;
   })();

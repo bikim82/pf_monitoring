@@ -316,13 +316,17 @@ async function fetchFull(ticker){
 
   // 주간/월간 (유효 인덱스 기준)
   // 직전 금요일 / 전월 말일 기준 수익률
+  // 직전 금요일 / 전월말: ts[-1](마지막 거래일) 기준
   function lastFriTs(){
-    var d=new Date(); d.setHours(0,0,0,0);
+    var refTs=ts[ts.length-1];
+    var d=new Date(refTs*1000); d.setHours(0,0,0,0);
     for(var i=1;i<=10;i++){d.setDate(d.getDate()-1);if(d.getDay()===5)return d.getTime()/1000;}
-    return Date.now()/1000-7*86400;
+    return refTs-7*86400;
   }
   function lastMonthEndTs(){
-    var d=new Date(); var m=new Date(d.getFullYear(),d.getMonth(),0); m.setHours(0,0,0,0);
+    var refTs=ts[ts.length-1];
+    var refDate=new Date(refTs*1000);
+    var m=new Date(refDate.getFullYear(),refDate.getMonth(),0); m.setHours(0,0,0,0);
     return m.getTime()/1000;
   }
   function priceAtTs(tsArr,clArr,targetTs){
