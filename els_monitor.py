@@ -24,11 +24,10 @@ YF_MAP = {
   "SX5E":"^STOXX50E","SPX":"^GSPC","MXWO":"URTH","MXEF":"EEM",
   "ES1":"ES=F","SX5E_fut":"^STOXX50E","NIY1":"NIY=F",
   "USDKRW":"KRW=X","JPYKRW":"JPYKRW=X","EURKRW":"EURKRW=X",
-  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","USDCNH_ALT":"USDCNH=X","USDCNH_ALT2":"6N=F","DXY":"DX-Y.NYB",
+  "EURUSD":"EURUSD=X","USDJPY":"JPY=X","USDCNH":"CNH=X","USDCNH_ALT":"USDCNH=X","DXY":"DX-Y.NYB",
   "WTI":"CL=F","BRENT":"BZ=F","GOLD":"GC=F","BTC":"BTC-USD",
   "VIX":"^VIX","VIX3M":"^VIX3M","VIX6M":"^VIX6M","VIX1Y":"^VIX1Y",
-  "VKOSPI":"^VKOSPI",
-  "UST10Y":"^TNX","UST30Y":"^TYX",
+    "UST10Y":"^TNX","UST30Y":"^TYX",
   # 한국주식
   "KR_005930":"005930.KS",
   "KR_000660":"000660.KS",
@@ -254,7 +253,7 @@ def build(yf_d,tv_d,ses):
     L.append("`종목       전일    주간   MA50  구름  1개월  YTD`")
     def _afull(args):
       t,n=args
-      return t,n,analyze_full(t)
+      return t,n,analyze_stock(t)
     with ThreadPoolExecutor(max_workers=4) as ex:
       kr_res=list(ex.map(_afull, KR_LIST))
     for t,n,r in kr_res:
