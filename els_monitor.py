@@ -3,6 +3,7 @@
 import os,requests
 from datetime import datetime,timedelta
 import yfinance as yf
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -73,7 +74,7 @@ FRED_MAP = {
 # ─── 데이터 수집 ───────────────────────────
 def gyt(ticker):
   try:
-    h=yf.Ticker(ticker).history(period="6mo",auto_adjust=True)
+    h=yf.Ticker(ticker).history(period="5d",auto_adjust=True)
     if h.empty or len(h)<2: return None,None
     v=round(float(h["Close"].iloc[-1]),4)
     p=round(float(h["Close"].iloc[-2]),4)
@@ -251,8 +252,12 @@ def build(yf_d,tv_d,ses):
 
     L.append("🇰🇷 *한국 주요주*")
     L.append("`종목       전일    주간   MA50  구름  1개월  YTD`")
-    for t,n in KR_LIST:
-      r=analyze_full(t)
+    def _afull(args):
+      t,n=args
+      return t,n,analyze_full(t)
+    with ThreadPoolExecutor(max_workers=4) as ex:
+      kr_res=list(ex.map(_afull, KR_LIST))
+    for t,n,r in kr_res:
       if not r: continue
       pr=f"₩{int(r['price']):,}"
       d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
@@ -266,8 +271,9 @@ def build(yf_d,tv_d,ses):
 
     L.append("🌐 *글로벌 주요주*")
     L.append("`종목       현재가   전일   주간   MA50  구름`")
-    for t,n in GL_LIST:
-      r=analyze_full(t)
+    with ThreadPoolExecutor(max_workers=4) as ex:
+      gl_res=list(ex.map(_afull, GL_LIST))
+    for t,n,r in gl_res:
       if not r: continue
       d1s=f"{r['chg1d']:+.1f}%" if r['chg1d'] else "—"
       wks=f"{r['wk']:+.1f}%" if r['wk'] else "—"
