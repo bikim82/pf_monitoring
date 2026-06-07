@@ -893,7 +893,13 @@ function renderTable(){
     h+=`<tr onclick="openDet('${p.t}')">
       <td><div class="tk-row">
         <div class="tk-dot" style="background:${col};box-shadow:0 0 5px ${col}55"></div>
-        <div><div class="tk-name">${p.t}</div><div class="tk-sub">${p.n} · ${p.acct}</div></div>
+        <div>
+          <div class="tk-name">${p.t}</div>
+          <div class="tk-sub">${p.n} · ${p.acct}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--t2);margin-top:2px">
+            ₩${Math.round(r.s*r.price*(r.krw?1:FX)).toLocaleString('ko')}
+          </div>
+        </div>
       </div></td>
       <td style="white-space:nowrap">
         <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;
@@ -904,8 +910,31 @@ function renderTable(){
       <td>
         <div style="font-family:var(--mono);font-weight:600;font-size:12.5px">${prStr}</div>
         <div style="font-family:var(--mono);font-size:10px;color:${cc};margin-top:1px">${r.chg>=0?'+':''}${r.chg}%</div>
+        ${(function(){
+          var fxC=r.krw?1:FX; var fxD=r.krw?1:(FX_HIST.d1||FX);
+          var cur=r.s*r.price*fxC;
+          var pPrev=r.chg!=null?r.price/(1+r.chg/100):r.price;
+          var d1pnl=Math.round(cur - r.s*pPrev*fxD);
+          var pnlC=d1pnl>=0?'var(--green)':'var(--red)';
+          var pnlS=(d1pnl>=0?'+':'')+(d1pnl>=0?'+':'')+'₩'+Math.abs(d1pnl).toLocaleString('ko');
+          var pnlS2=(d1pnl>=0?'+':'-')+'₩'+Math.abs(d1pnl).toLocaleString('ko');
+          return '<div style="font-family:var(--mono);font-size:9.5px;color:'+pnlC+';margin-top:1px">'+pnlS2+'</div>';
+        })()}
       </td>
-      ${['wk','mo','ytd','y1'].map(k=>{var v=r.rets?r.rets[k]:null;var col=v==null?'var(--t3)':v>=0?'var(--green)':'var(--red)';var txt=v==null?'—':(v>=0?'+':'')+v+'%';return '<td><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:'+col+'">'+txt+'</span></td>';}).join('')}
+      ${['wk','mo','ytd','y1'].map((k,ki)=>{
+        var v=r.rets?r.rets[k]:null;
+        var col2=v==null?'var(--t3)':v>=0?'var(--green)':'var(--red)';
+        var txt=v==null?'—':(v>=0?'+':'')+v+'%';
+        // 손익 계산
+        var fxC=r.krw?1:FX;
+        var fxK=r.krw?1:(ki===0?(FX_HIST.wk||FX):ki===1?(FX_HIST.mo||FX):ki===2?(FX_HIST.mo||FX):(FX_HIST.mo||FX));
+        var cur=r.s*r.price*fxC;
+        var pPast=v!=null?r.price/(1+v/100):r.price;
+        var pnl=Math.round(cur - r.s*pPast*fxK);
+        var pnlC2=pnl>=0?'var(--green)':'var(--red)';
+        var pnlS=(pnl>=0?'+':'-')+'₩'+Math.abs(pnl).toLocaleString('ko');
+        return '<td><div><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:'+col2+'">'+txt+'</span>'+(v!=null?'<div style="font-family:var(--mono);font-size:9.5px;color:'+pnlC2+';margin-top:1px">'+pnlS+'</div>':'')+'</div></td>';
+      }).join('')}
       <td>${sh(r.ma.s50,r.ma.p50)}</td>
       <td>${sh(r.ma.s100,r.ma.p100)}</td>
       <td>${sh(r.ma.s250,r.ma.p250)}</td>
