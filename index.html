@@ -304,7 +304,7 @@ document.addEventListener('keydown',e=>{
 // ═══════════════════════════════════════════════
 //  Fetch helpers
 // ═══════════════════════════════════════════════
-async function fx2(url, ms=9000){
+async function fx2(url, ms=6000){
   const proxies=[
     u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
     u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
@@ -607,8 +607,8 @@ async function fetchDetail(tk){
 
   // IB 등급변동 + 목표주가 + 어닝
   const [d1,d2]=await Promise.all([
-    fx2(`${base}?modules=upgradeDowngradeHistory,financialData`,8000),
-    fx2(`${base}?modules=calendarEvents`,6000),
+    fx2(`${base}?modules=upgradeDowngradeHistory,financialData`,5000),
+    fx2(`${base}?modules=calendarEvents`,5000),
   ]);
 
   let ibList=[],targets={},earn={};
@@ -704,11 +704,12 @@ async function runLoad(){
 
   let done=0;
   const tot=PORTFOLIO.length;
-  for(let i=0;i<tot;i+=4){
-    const batch=PORTFOLIO.slice(i,i+4);
+  for(let i=0;i<tot;i+=3){
+    const batch=PORTFOLIO.slice(i,i+3);
     await Promise.all(batch.map(async p=>{
       setL(Math.round(done/tot*90),`${p.n} 조회 중...`);
-      RES[p.t]=await fetchTk(p);
+      const _to=(pr,ms)=>Promise.race([pr,new Promise((_,rej)=>setTimeout(()=>rej(new Error('to')),ms))]);
+      RES[p.t]=await _to(fetchTk(p),15000).catch(()=>null);
       done++;
       setL(Math.round(done/tot*90),`${p.n} 완료`);
     }));
