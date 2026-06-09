@@ -449,20 +449,25 @@ async function fetchTk(p){
   const cl=q.close,hi=q.high,lo=q.low,op=q.open;
   if(!cl?.length)return null;
 
-  const price=cl[cl.length-1],prev=cl[cl.length-2]||price;
+  // null-safe: 마지막 유효값 찾기 (한국 ETF 대응)
+  const validIdx=cl.map((v,i)=>v!=null&&!isNaN(v)&&v>0?i:-1).filter(i=>i>=0);
+  if(!validIdx.length) return null;
+  const lastI=validIdx[validIdx.length-1];
+  const prevI=validIdx.length>=2?validIdx[validIdx.length-2]:lastI;
+  const price=cl[lastI], prev=cl[prevI]||price;
   const m50v=sma(cl,50),m100v=sma(cl,100),m250v=sma(cl,250);
-  const ma50=m50v[cl.length-1],ma100=m100v[cl.length-1],ma250=m250v[cl.length-1];
+  const ma50=m50v[lastI],ma100=m100v[lastI],ma250=m250v[lastI];
   const sig=m=>isNaN(m)?'x':(price/m-1)*100>3?'a':(price/m-1)*100<-3?'b':'n';
   const pct=m=>isNaN(m)?null:+((price/m-1)*100).toFixed(1);
   const c5100=cross(m50v,m100v),c5250=cross(m50v,m250v);
   const {tn,kj,sa,sb}=ichi(hi,lo);
   const n=cl.length;
-  const ltn=tn[n-1],lkj=kj[n-1],lsa=sa[n-1],lsb=sb[n-1];
+  const ltn=tn[lastI],lkj=kj[lastI],lsa=sa[lastI],lsb=sb[lastI];
   const ctop=!isNaN(lsa)&&!isNaN(lsb)?Math.max(lsa,lsb):NaN;
   const cbot=!isNaN(lsa)&&!isNaN(lsb)?Math.min(lsa,lsb):NaN;
   const cp=isNaN(ctop)?'x':price>ctop?'a':price<cbot?'b':'i';
   const tk=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
-  const h52=Math.max(...hi.filter(v=>v)),l52=Math.min(...lo.filter(v=>v));
+  const h52=Math.max(...hi.filter(v=>v!=null&&v>0)),l52=Math.min(...lo.filter(v=>v!=null&&v>0));
   const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
   const rets=cl.slice(1).map((v,i)=>cl[i]?((v-cl[i])/cl[i]):NaN).filter(v=>!isNaN(v));
   const avgR=rets.reduce((a,b)=>a+b,0)/rets.length;
@@ -574,12 +579,11 @@ async function fetchTk(p){
     .filter(Boolean);
 
   // OHLC (직전년도 1/1 이후)
-  const ohlc=ts
-    .map((t,i)=>{
-      if(t<prevYearStart||isNaN(cl[i]))return null;
-      return{time:t,open:+op[i].toFixed(4),high:+hi[i].toFixed(4),
-             low:+lo[i].toFixed(4),close:+cl[i].toFixed(4)};
-    }).filter(Boolean);
+  const ohlc=ts.map((t,i)=>{
+    if(t<prevYearStart||cl[i]==null||isNaN(cl[i])||cl[i]<=0) return null;
+    const o=op[i]||cl[i], h=hi[i]||cl[i], l=lo[i]||cl[i];
+    return{time:t,open:+o.toFixed(4),high:+h.toFixed(4),low:+l.toFixed(4),close:+cl[i].toFixed(4)};
+  }).filter(Boolean);
 
   return{
     t:p.t,n:p.n,s:p.s,krw:p.krw||false,
@@ -709,7 +713,7 @@ async function runLoad(){
     await Promise.all(batch.map(async p=>{
       setL(Math.round(done/tot*90),`${p.n} 조회 중...`);
       const _to=(pr,ms)=>Promise.race([pr,new Promise((_,rej)=>setTimeout(()=>rej(new Error('to')),ms))]);
-      RES[p.t]=await _to(fetchTk(p),15000).catch(()=>null);
+      RES[p.t]=await _to(fetchTk(p),20000).catch(()=>null);
       done++;
       setL(Math.round(done/tot*90),`${p.n} 완료`);
     }));
