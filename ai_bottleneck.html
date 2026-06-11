@@ -136,6 +136,7 @@ tbody tr:hover td:first-child{background:var(--bg3)}
   </div>
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('overview',this)">📊 섹터 개요</button>
+    <button class="tab-btn" onclick="switchTab('hyper',this)">🌐 하이퍼스케일러</button>
     <button class="tab-btn" onclick="switchTab('energy',this)">⚡ 에너지·전력</button>
     <button class="tab-btn" onclick="switchTab('cooling',this)">❄️ 냉각·열관리</button>
     <button class="tab-btn" onclick="switchTab('memory',this)">💾 메모리·스토리지</button>
@@ -148,6 +149,7 @@ tbody tr:hover td:first-child{background:var(--bg3)}
   <div id="tab-memory"   class="content" style="display:none"></div>
   <div id="tab-network"  class="content" style="display:none"></div>
   <div id="tab-data"     class="content" style="display:none"></div>
+  <div id="tab-hyper"   class="content" style="display:none"></div>
 </div>
 <!-- Detail -->
 <div id="detail" class="detail">
@@ -182,6 +184,19 @@ const PIN='1104';
 //  종목 정의
 // ════════════════════════════════════════
 const THEMES={
+  hyper:{
+    label:'🌐 하이퍼스케일러',color:'#6366f1',
+    groups:[{title:'하이퍼스케일러 (AI 인프라 수요 주도)', color:'#6366f1', stocks:[
+      {k:'GOOGL', n:'Alphabet (Google)', memo:'GCP·TPU·Gemini, AI 검색·클라우드',  krw:false},
+      {k:'MSFT',  n:'Microsoft',         memo:'Azure·OpenAI, 기업 AI 1위',          krw:false},
+      {k:'AMZN',  n:'Amazon',            memo:'AWS 글로벌 1위, Trainium/Inferentia', krw:false},
+      {k:'META',  n:'Meta',              memo:'자체 AI 인프라 (MTIA), Llama 오픈소스',krw:false},
+      {k:'ORCL',  n:'Oracle',            memo:'OCI 데이터센터, GPU 클러스터 급성장', krw:false},
+      {k:'AAPL',  n:'Apple',             memo:'온디바이스 AI, Apple Silicon',        krw:false},
+      {k:'BABA',  n:'Alibaba',           memo:'알리바바 클라우드, Qwen AI 모델',    krw:false},
+      {k:'TCEHY', n:'Tencent ADR',       memo:'텐센트 클라우드, Hunyuan AI 모델',   krw:false},
+    ]}]
+  },
   energy:{
     label:'⚡ 에너지·전력망',color:'#f59e0b',
     groups:[
@@ -484,7 +499,16 @@ async function runLoad(){
     }));
   }
   setL(95,'화면 그리는 중...');
-  renderAll();
+  try{
+    renderOverview();
+    Object.keys(THEMES).forEach(k=>{
+      try{ renderTheme(k); }
+      catch(e){ console.error('renderTheme error:',k,e);
+        const el=document.getElementById('tab-'+k);
+        if(el) el.innerHTML='<div style="padding:20px;color:var(--red)">렌더링 오류: '+e.message+'</div>';
+      }
+    });
+  }catch(e){ console.error('renderAll error:',e); }
   setL(100,'완료');
   setTimeout(()=>{document.getElementById('loading').style.display='none';document.getElementById('app').style.display='';},200);
   document.getElementById('upd').textContent='업데이트: '+new Date().toLocaleTimeString('ko-KR');
@@ -503,7 +527,7 @@ const CLOUD_C={'a':'cloud-a','i':'cloud-i','b':'cloud-b'};
 const CLOUD_T={'a':'☁↑ 구름위','i':'☁≈ 구름내','b':'☁↓ 구름아래'};
 
 function switchTab(id,btn){
-  ['overview','energy','cooling','memory','network','data'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
+  ['overview','energy','cooling','memory','network','data','hyper'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+id).style.display='';
   btn.classList.add('active');
@@ -511,7 +535,10 @@ function switchTab(id,btn){
 
 function renderAll(){
   renderOverview();
-  Object.keys(THEMES).forEach(k=>renderTheme(k));
+  Object.keys(THEMES).forEach(k=>{
+    try{ renderTheme(k); }
+    catch(e){ console.error('renderTheme:',k,e); }
+  });
 }
 
 // ── 섹터 개요 ────────────────────────────
@@ -561,7 +588,7 @@ function renderOverview(){
   data.forEach(d=>{
     const totalUp=THEMES[d.key].groups.flatMap(g=>g.stocks).filter(s=>D[s.k]?.chg1d>=0).length;
     const totalAll=THEMES[d.key].groups.flatMap(g=>g.stocks).length;
-    h+=`<div class="sector-card" onclick="document.querySelector('.tab-btn[onclick*=\\'${d.key}\\']').click()">
+    h+=`<div class="sector-card" onclick="gotoTab('${d.key}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <div>
           <div style="font-size:13px;font-weight:700">${d.label}</div>
@@ -836,6 +863,10 @@ function showEvt(themeKey,type){
     <button onclick="closeModal()" style="width:100%;margin-top:14px;padding:9px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--t2);font-family:var(--font);font-size:12px;cursor:pointer">닫기</button>
   </div>`;
   ov.style.display='flex';
+}
+function gotoTab(key){
+  const btn=document.querySelector('.tab-btn[onclick*="'+key+'"]');
+  if(btn) btn.click();
 }
 function closeModal(){document.getElementById('modal-ov').style.display='none';}
 </script>
