@@ -142,6 +142,10 @@ tbody tr:hover td:first-child{background:var(--bg3)}
     <button class="tab-btn" onclick="switchTab('memory',this)">💾 메모리·스토리지</button>
     <button class="tab-btn" onclick="switchTab('network',this)">🔗 패키징·네트워킹</button>
     <button class="tab-btn" onclick="switchTab('data',this)">📡 데이터 IP</button>
+    <button class="tab-btn" onclick="switchTab('mlcc',this)">🔌 MLCC</button>
+    <button class="tab-btn" onclick="switchTab('physical',this)">🤖 피지컬 AI</button>
+    <button class="tab-btn" onclick="switchTab('mlcc',this)">🔋 MLCC·수동부품</button>
+    <button class="tab-btn" onclick="switchTab('physical',this)">🤖 피지컬 AI</button>
   </div>
   <div id="tab-overview" class="content"></div>
   <div id="tab-energy"   class="content" style="display:none"></div>
@@ -150,6 +154,8 @@ tbody tr:hover td:first-child{background:var(--bg3)}
   <div id="tab-network"  class="content" style="display:none"></div>
   <div id="tab-data"     class="content" style="display:none"></div>
   <div id="tab-hyper"   class="content" style="display:none"></div>
+  <div id="tab-mlcc"    class="content" style="display:none"></div>
+  <div id="tab-physical" class="content" style="display:none"></div>
 </div>
 <!-- Detail -->
 <div id="detail" class="detail">
@@ -262,6 +268,37 @@ const THEMES={
       {k:'RDDT', n:'Reddit',    memo:'커뮤니티 데이터 AI 라이선싱', krw:false},
       {k:'NWS',  n:'News Corp', memo:'WSJ 등 미디어 데이터 제공',   krw:false},
     ]}]
+  },
+  mlcc:{
+    label:'🔌 MLCC',color:'#f97316',
+    groups:[
+      {title:'MLCC 글로벌 TOP5 (시총순)', color:'#f97316', stocks:[
+        {k:'6981.T',    n:'무라타 제작소',  memo:'글로벌 1위(45%), 세라믹 원재료 내재화·AI서버 공급망 독점',  krw:false},
+        {k:'6762.T',    n:'TDK',           memo:'종합 수동부품 거인, VRM·파워모듈 AI DC 매출 급성장',      krw:false},
+        {k:'6971.T',    n:'교세라',         memo:'FC-BGA·세라믹기판 강자, 산업용 특수 MLCC 점유율',        krw:false},
+        {k:'009150.KS', n:'삼성전기',       memo:'AI서버 MLCC 40% 점유(2위), 풀가동·하반기 가격인상 예정', krw:true},
+        {k:'2327.TW',   n:'야게오 (Yageo)',memo:'범용·산업용 MLCC 강자, 대만 ODM 공급망 레버리지',        krw:false},
+      ]},
+      {title:'KRX 서브 플레이어', color:'#fb923c', stocks:[
+        {k:'005070.KS', n:'코스모신소재',  memo:'MLCC 이형필름 세계 1위, AI서버 수요 직접 수혜',     krw:true},
+        {k:'001820.KS', n:'삼화콘덴서',   memo:'산업용 콘덴서 전문, 전장·AI 인프라 수요 확대',     krw:true},
+      ]}
+    ]
+  },
+  physical:{
+    label:'🤖 피지컬 AI',color:'#a855f7',
+    groups:[
+      {title:'피지컬 AI·로보틱스 메가캡 TOP5', color:'#a855f7', stocks:[
+        {k:'TSLA',      n:'Tesla',         memo:'Optimus·FSD 엔드투엔드 지배자, AI칩~로봇바디 수직통합', krw:false},
+        {k:'6861.T',    n:'키엔스 (Keyence)',memo:'머신비전 센서 독점, 영업이익률 50%+, 로봇의 눈',   krw:false},
+        {k:'005380.KS', n:'현대자동차',    memo:'Boston Dynamics 모기업, Atlas·Stretch 동적제어 플랫폼', krw:true},
+        {k:'6954.T',    n:'화낙 (Fanuc)',  memo:'글로벌 FA·산업용 로봇 대명사, 제조업 물리AI 인프라',  krw:false},
+        {k:'066570.KS', n:'LG전자',        memo:'Bear Robotics 투자, 물류·서비스 로봇 SI망 구축 중',  krw:true},
+      ]},
+      {title:'K-로봇 순수 플레이 (센티먼트 지표)', color:'#c084fc', stocks:[
+        {k:'277810.KQ', n:'레인보우로보틱스',memo:'협동로봇·휴머노이드 대장주, K-로봇 테마 순수 베타',  krw:true},
+      ]}
+    ]
   }
 };
 
@@ -527,7 +564,7 @@ const CLOUD_C={'a':'cloud-a','i':'cloud-i','b':'cloud-b'};
 const CLOUD_T={'a':'☁↑ 구름위','i':'☁≈ 구름내','b':'☁↓ 구름아래'};
 
 function switchTab(id,btn){
-  ['overview','energy','cooling','memory','network','data','hyper'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
+  ['overview','energy','cooling','memory','network','data','hyper','mlcc','physical'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+id).style.display='';
   btn.classList.add('active');
