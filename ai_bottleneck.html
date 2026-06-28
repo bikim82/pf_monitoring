@@ -190,6 +190,10 @@ tbody tr:hover td:first-child{background:var(--bg3)}
       <span style="color:var(--blue)">aistudio.google.com → Get API key</span></div>
     <input id="gemini-inp" type="password" placeholder="AIza..." autocomplete="off"
       style="width:100%;padding:9px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--t1);font-family:var(--mono);font-size:12px;outline:none;margin-bottom:12px;box-sizing:border-box">
+    <div style="font-size:10.5px;color:var(--t3);margin-bottom:12px;padding-top:4px;border-top:1px solid var(--border)">Finnhub API 키 (애널리스트 컨센서스 · 무료)<br>
+      <span style="color:var(--blue)">finnhub.io → Get free API key</span></div>
+    <input id="finnhub-inp" type="password" placeholder="c0xxxx..." autocomplete="off"
+      style="width:100%;padding:9px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--t1);font-family:var(--mono);font-size:12px;outline:none;margin-bottom:12px;box-sizing:border-box">
     <div style="display:flex;gap:8px">
       <button onclick="saveGeminiKey()" style="flex:1;padding:9px;background:var(--purple);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">저장</button>
       <button onclick="closeGeminiModal()" style="flex:1;padding:9px;background:var(--bg3);color:var(--t2);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">취소</button>
@@ -904,6 +908,7 @@ function showGeminiModal(){
   const m=document.getElementById('gemini-modal');
   m.style.display='flex';
   document.getElementById('gemini-inp').value=localStorage.getItem('gemini_key')||'';
+  document.getElementById('finnhub-inp').value=localStorage.getItem('finnhub_key')||'';
   document.getElementById('gemini-status').textContent='';
 }
 function closeGeminiModal(){
@@ -912,14 +917,16 @@ function closeGeminiModal(){
 function saveGeminiKey(){
   const v=document.getElementById('gemini-inp').value.trim();
   if(v) localStorage.setItem('gemini_key',v); else localStorage.removeItem('gemini_key');
-  document.getElementById('gemini-status').textContent=v?'✅ 저장됨':'삭제됨';
+  const f=document.getElementById('finnhub-inp').value.trim();
+  if(f) localStorage.setItem('finnhub_key',f); else localStorage.removeItem('finnhub_key');
+  document.getElementById('gemini-status').textContent='✅ 저장됨';
   setTimeout(closeGeminiModal,900);
 }
 async function callGemini(prompt){
   const key=localStorage.getItem('gemini_key');
   if(!key) throw new Error('키 없음 (⚙️ 설정)');
   const res=await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     {method:'POST',headers:{'Content-Type':'application/json'},
      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
        generationConfig:{maxOutputTokens:220,temperature:0.2}}),
@@ -974,27 +981,29 @@ SCORE:숫자(-10~+10)`;
 }
 
 async function loadDetAsync(ticker,d){
-  // 뉴스 + 컨센서스 병렬 fetch
-  const base=`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}`;
-  const [d1,newsData]=await Promise.allSettled([
-    fx2(`${base}?modules=recommendationTrend`,5000),
-    fx2(`${base}?modules=assetProfile`,5000)
-  ]);
-
-  // 뉴스는 별도 endpoint
+  // 뉴스 — Yahoo search (crumb 불필요)
   let news=[];
   try{
     const nd=await fx2(`https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=5&quotesCount=0`,5000);
     news=nd?.news||[];
   }catch{}
 
+  // 컨센서스 — Finnhub (Yahoo quoteSummary가 crumb 인증으로 차단됨)
+  const fk=localStorage.getItem('finnhub_key');
+  let fhRec=null;
+  if(fk){
+    try{
+      const r=await fetch(`https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${fk}`);
+      if(r.ok){const arr=await r.json();fhRec=Array.isArray(arr)?arr[0]:null;}
+    }catch{}
+  }
+
   // 컨센서스
   const conEl=document.getElementById('det-consensus');
   if(conEl){
     let consensus=null;
     try{
-      const trend=d1?.value?.quoteSummary?.result?.[0]?.recommendationTrend?.trend?.[0];
-      if(trend) consensus={sb:trend.strongBuy||0,b:trend.buy||0,h:trend.hold||0,s:trend.sell||0,ss:trend.strongSell||0};
+      if(fhRec) consensus={sb:fhRec.strongBuy||0,b:fhRec.buy||0,h:fhRec.hold||0,s:fhRec.sell||0,ss:fhRec.strongSell||0};
     }catch{}
     if(consensus){
       const tot=consensus.sb+consensus.b+consensus.h+consensus.s+consensus.ss||1;
@@ -1023,7 +1032,7 @@ async function loadDetAsync(ticker,d){
             <span style="font-size:10px;font-family:var(--mono);color:${b.c};width:20px;text-align:right">${b.v}</span>
           </div>`).join('');
     } else {
-      conEl.innerHTML='<span style="color:var(--t3);font-size:11px">데이터 없음</span>';
+      conEl.innerHTML=fk?'<span style="color:var(--t3);font-size:11px">데이터 없음</span>':'<span style="color:var(--t3);font-size:11px">Finnhub 키 없음 (⚙️ 설정)</span>';
     }
   }
 
