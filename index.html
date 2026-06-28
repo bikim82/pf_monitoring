@@ -1133,18 +1133,20 @@ function saveGeminiKey(){
 }
 async function callGemini(prompt){
   const key=localStorage.getItem('gemini_key');
-  if(!key) return null;
-  try{
-    const res=await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
-      {method:'POST',headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
-         generationConfig:{maxOutputTokens:220,temperature:0.2}}),
-       signal:AbortSignal.timeout(18000)});
-    if(!res.ok) return null;
-    const j=await res.json();
-    return j.candidates?.[0]?.content?.parts?.[0]?.text||null;
-  }catch{return null;}
+  if(!key) throw new Error('키 없음 (⚙️ 설정)');
+  const res=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
+       generationConfig:{maxOutputTokens:220,temperature:0.2}}),
+     signal:AbortSignal.timeout(18000)});
+  if(!res.ok){
+    let msg='';
+    try{const e=await res.json();msg=e?.error?.message||'';}catch{}
+    throw new Error(`HTTP ${res.status}${msg?': '+msg.slice(0,90):''}`);
+  }
+  const j=await res.json();
+  return j.candidates?.[0]?.content?.parts?.[0]?.text||null;
 }
 async function loadLLMCard(tk,r,news){
   const el=document.getElementById('det-llm');
@@ -1162,8 +1164,10 @@ async function loadLLMCard(tk,r,news){
 ${headlines}
 
 한국어로만 답변. [강세] 근거 1문장, [약세] 근거 1문장. 마지막 줄 반드시: SCORE:숫자(-10~+10)`;
-  const txt=await callGemini(prompt);
-  if(!txt){el.innerHTML='<span style="color:var(--t3);font-size:11px">분석 실패 (API 키 확인)</span>';return;}
+  let txt;
+  try{ txt=await callGemini(prompt); }
+  catch(e){ el.innerHTML='<span style="color:var(--red);font-size:11px">'+(e.message||'호출 실패')+'</span>'; return; }
+  if(!txt){el.innerHTML='<span style="color:var(--t3);font-size:11px">응답 없음</span>';return;}
   const scoreMatch=txt.match(/SCORE:\s*(-?\d+)/);
   const score=scoreMatch?parseInt(scoreMatch[1]):null;
   const body=txt.replace(/SCORE:\s*-?\d+/g,'').trim();
