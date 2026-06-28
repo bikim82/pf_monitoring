@@ -169,6 +169,7 @@ tbody tr:hover{background:var(--bg3)}
     <div class="logo"><span class="logo-dot"></span>아이 PF Monitor</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="upd" style="font-size:10px;color:var(--t3);font-family:var(--mono)"></span>
+      <button class="rbtn" onclick="showGeminiModal()" title="API 설정">⚙️</button>
       <button class="rbtn" id="rbtn" onclick="runLoad()">🔄 새로고침</button>
     </div>
   </div>
@@ -187,6 +188,22 @@ tbody tr:hover{background:var(--bg3)}
         <tbody id="tbody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- Gemini Key Modal -->
+<div id="gemini-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:24px;width:100%;max-width:320px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">⚙️ API 설정</div>
+    <div style="font-size:10.5px;color:var(--t3);margin-bottom:12px">Gemini API 키 (AI 요약카드 · 무료)<br>
+      <span style="color:var(--blue)">aistudio.google.com → Get API key</span></div>
+    <input id="gemini-inp" type="password" placeholder="AIza..." autocomplete="off"
+      style="width:100%;padding:9px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--t1);font-family:var(--mono);font-size:12px;outline:none;margin-bottom:12px;box-sizing:border-box">
+    <div style="display:flex;gap:8px">
+      <button onclick="saveGeminiKey()" style="flex:1;padding:9px;background:var(--blue);color:#000;font-weight:700;border:none;border-radius:7px;cursor:pointer;font-size:12px">저장</button>
+      <button onclick="closeGeminiModal()" style="flex:1;padding:9px;background:var(--bg3);color:var(--t2);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">취소</button>
+    </div>
+    <div id="gemini-status" style="font-size:10px;color:var(--t3);margin-top:8px;text-align:center;height:14px"></div>
   </div>
 </div>
 
@@ -614,7 +631,7 @@ async function fetchDetail(tk){
 
   // IB 등급변동 + 목표주가 + 어닝
   const [d1,d2]=await Promise.all([
-    fx2(`${base}?modules=upgradeDowngradeHistory,financialData`,5000),
+    fx2(`${base}?modules=upgradeDowngradeHistory,financialData,recommendationTrend`,5000),
     fx2(`${base}?modules=calendarEvents`,5000),
   ]);
 
@@ -689,7 +706,14 @@ async function fetchDetail(tk){
       }));
     }catch{}
   }
-  return{ibList,targets,earn,news};
+  // 애널리스트 컨센서스
+  let consensus=null;
+  try{
+    const trend=d1?.quoteSummary?.result?.[0]?.recommendationTrend?.trend?.[0];
+    if(trend) consensus={sb:trend.strongBuy||0,b:trend.buy||0,h:trend.hold||0,s:trend.sell||0,ss:trend.strongSell||0};
+  }catch{}
+
+  return{ibList,targets,earn,news,consensus};
 }
 
 // ═══════════════════════════════════════════════
@@ -1091,6 +1115,78 @@ function buildChart(r,col){
   window.onresize=()=>{ if(lwChart){ const w=box.getBoundingClientRect().width||window.innerWidth-340; lwChart.resize(Math.max(w,280),400); } };
 }
 
+// ── Gemini API ────────────────────────────────
+function showGeminiModal(){
+  const m=document.getElementById('gemini-modal');
+  m.style.display='flex';
+  document.getElementById('gemini-inp').value=localStorage.getItem('gemini_key')||'';
+  document.getElementById('gemini-status').textContent='';
+}
+function closeGeminiModal(){
+  document.getElementById('gemini-modal').style.display='none';
+}
+function saveGeminiKey(){
+  const v=document.getElementById('gemini-inp').value.trim();
+  if(v) localStorage.setItem('gemini_key',v); else localStorage.removeItem('gemini_key');
+  document.getElementById('gemini-status').textContent=v?'✅ 저장됨':'삭제됨';
+  setTimeout(closeGeminiModal,900);
+}
+async function callGemini(prompt){
+  const key=localStorage.getItem('gemini_key');
+  if(!key) return null;
+  try{
+    const res=await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
+         generationConfig:{maxOutputTokens:220,temperature:0.2}}),
+       signal:AbortSignal.timeout(18000)});
+    if(!res.ok) return null;
+    const j=await res.json();
+    return j.candidates?.[0]?.content?.parts?.[0]?.text||null;
+  }catch{return null;}
+}
+async function loadLLMCard(tk,r,news){
+  const el=document.getElementById('det-llm');
+  if(!el) return;
+  if(!localStorage.getItem('gemini_key')){
+    el.innerHTML='<span style="color:var(--t3);font-size:11px">Gemini 키 없음 (⚙️ 우측 상단 설정)</span>';
+    return;
+  }
+  const ichiTxt={a:'구름위(강세)',i:'구름내(중립)',b:'구름아래(약세)',x:'불명'}[r.ichi.cp]||'불명';
+  const headlines=(news||[]).slice(0,3).map(n=>'· '+n.title).join('\n')||'없음';
+  const p50s=r.ma.p50!=null?(r.ma.p50>=0?'+':'')+r.ma.p50+'%':'N/A';
+  const p250s=r.ma.p250!=null?(r.ma.p250>=0?'+':'')+r.ma.p250+'%':'N/A';
+  const prompt=`종목: ${tk} | 현재가 ${r.price} (${r.chg>=0?'+':''}${r.chg}%) | MA50 ${p50s} | MA250 ${p250s} | ${ichiTxt} | RSI ${r.risk.rsi}
+최근뉴스:
+${headlines}
+
+한국어로만 답변. [강세] 근거 1문장, [약세] 근거 1문장. 마지막 줄 반드시: SCORE:숫자(-10~+10)`;
+  const txt=await callGemini(prompt);
+  if(!txt){el.innerHTML='<span style="color:var(--t3);font-size:11px">분석 실패 (API 키 확인)</span>';return;}
+  const scoreMatch=txt.match(/SCORE:\s*(-?\d+)/);
+  const score=scoreMatch?parseInt(scoreMatch[1]):null;
+  const body=txt.replace(/SCORE:\s*-?\d+/g,'').trim();
+  const lines=body.split('\n').filter(l=>l.trim());
+  let bullL='',bearL='';
+  lines.forEach(l=>{
+    const lt=l.toLowerCase();
+    if(lt.includes('[강세]')||lt.startsWith('강세')||lt.includes('상승')) bullL=bullL||l.replace(/^\[?강세\]?:?\s*/,'');
+    else if(lt.includes('[약세]')||lt.startsWith('약세')||lt.includes('하락')) bearL=bearL||l.replace(/^\[?약세\]?:?\s*/,'');
+  });
+  if(!bullL&&lines[0]) bullL=lines[0];
+  if(!bearL&&lines[1]) bearL=lines[1];
+  const sc=score==null?'var(--t3)':score>=3?'var(--green)':score<=-3?'var(--red)':'var(--amber)';
+  el.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px">Gemini 1.5 Flash</span>
+      ${score!=null?`<span style="font-family:var(--mono);font-size:14px;font-weight:700;color:${sc}">${score>0?'+':''}${score}</span>`:''}
+    </div>
+    ${bullL?`<div style="font-size:11.5px;line-height:1.65;color:var(--green);margin-bottom:5px">▲ ${bullL}</div>`:''}
+    ${bearL?`<div style="font-size:11.5px;line-height:1.65;color:var(--red)">▼ ${bearL}</div>`:''}
+  </div>`;
+}
+
 // ── Static signal cards ─────────────────────
 function buildInfoStatic(r){
   var ma=r.ma, ic=r.ichi, lv=r.lv, rk=r.risk;
@@ -1200,17 +1296,80 @@ async function loadDetailAsync(tk){
   }
 
   const aEl=document.getElementById('det-async');
-  if(aEl)aEl.innerHTML=asyncHtml;
+  if(aEl) aEl.innerHTML=asyncHtml;
 
-  // 뉴스
+  // 컨센서스 + AI 요약 섹션 동적 삽입 (buildInfoStatic 수정 없이)
+  if(aEl && !document.getElementById('det-consensus')){
+    aEl.insertAdjacentHTML('afterend',
+      '<div class="dsec">애널리스트 컨센서스</div>' +
+      '<div id="det-consensus" style="padding:4px 0"><span class="spinner"></span></div>' +
+      '<div class="dsec">🤖 AI 요약</div>' +
+      '<div id="det-llm" style="padding:4px 0"><span class="spinner"></span></div>'
+    );
+  }
+
+  // 애널리스트 컨센서스
+  const conEl=document.getElementById('det-consensus');
+  if(conEl){
+    if(det.consensus){
+      const c=det.consensus;
+      const total=(c.sb+c.b+c.h+c.s+c.ss)||1;
+      const wScore=(c.sb*2+c.b-c.s-c.ss*2)/total;
+      const scoreC=wScore>=0.5?'var(--green)':wScore<=-0.5?'var(--red)':'var(--amber)';
+      const label=wScore>=1?'강력매수':wScore>=0.3?'매수':wScore>=-0.3?'보유':wScore>=-1?'매도':'강력매도';
+      const bars=[
+        {n:'강매수',v:c.sb,col:'var(--green)'},
+        {n:'매수',  v:c.b, col:'#3fb95066'},
+        {n:'보유',  v:c.h, col:'var(--amber)'},
+        {n:'매도',  v:c.s, col:'#f8514966'},
+        {n:'강매도',v:c.ss,col:'var(--red)'},
+      ];
+      conEl.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:10.5px;color:var(--t2)">애널리스트 ${total}명</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${scoreC}">${label}</span>
+        </div>
+        ${bars.map(b=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-size:9.5px;color:var(--t3);width:36px;flex-shrink:0">${b.n}</span>
+          <div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${(b.v/total*100).toFixed(1)}%;background:${b.col};border-radius:3px"></div>
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--t2);width:18px;text-align:right">${b.v}</span>
+        </div>`).join('')}
+      </div>`;
+    } else {
+      conEl.innerHTML='<span style="color:var(--t3);font-size:11px">컨센서스 데이터 없음</span>';
+    }
+  }
+
+  // AI 요약 (비동기 — 결과 기다리지 않음)
+  loadLLMCard(tk, r, det.news);
+
+  // 뉴스 + 키워드 기반 감성점수
   const nEl=document.getElementById('det-news');
   if(nEl){
     if(det.news?.length){
-      nEl.innerHTML=det.news.map((n,i)=>`
-        <a class="news-a" href="${n.link}" target="_blank">
-          <div class="ntitle">${i===0?'🔥 ':''}${n.title}</div>
-          <div class="nmeta">${n.pub||''} · ${n.date||''}</div>
-        </a>`).join('');
+      const POS=['record','beat','surge','rally','upgrade','buy','strong','growth','exceed','profit','raises','boom','win'];
+      const NEG=['miss','fall','cut','downgrade','sell','weak','loss','decline','crash','concern','warning','layoff','slump'];
+      let sentScore=0;
+      det.news.forEach(n=>{
+        const t=(n.title||'').toLowerCase();
+        POS.forEach(w=>{if(t.includes(w))sentScore++;});
+        NEG.forEach(w=>{if(t.includes(w))sentScore--;});
+      });
+      sentScore=Math.max(-5,Math.min(5,sentScore));
+      const sentC=sentScore>=2?'var(--green)':sentScore<=-2?'var(--red)':'var(--amber)';
+      const sentLbl=sentScore>=2?'강세':sentScore<=-2?'약세':'중립';
+      nEl.innerHTML=
+        `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px">뉴스 감성</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sentC}">${sentScore>=0?'+':''}${sentScore} ${sentLbl}</span>
+        </div>`+
+        det.news.map((n,i)=>`
+          <a class="news-a" href="${n.link}" target="_blank">
+            <div class="ntitle">${i===0?'🔥 ':''}${n.title}</div>
+            <div class="nmeta">${n.pub||''} · ${n.date||''}</div>
+          </a>`).join('');
     } else {
       nEl.innerHTML='<span style="color:var(--t3);font-size:11px">뉴스 없음</span>';
     }
