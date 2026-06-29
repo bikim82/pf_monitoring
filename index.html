@@ -358,6 +358,37 @@ function relTime(ts){
   return new Date(ts*1000).toLocaleDateString('ko-KR');
 }
 
+// ── 베타: 벤치마크(S&P500/KOSPI) 회귀로 직접 계산 ──
+let BENCH_US=null, BENCH_KR=null;
+function tsToDay(ts){ return new Date(ts*1000).toISOString().slice(0,10); }
+async function loadBench(){
+  for(const [sym,isKR] of [['^GSPC',false],['^KS11',true]]){
+    try{
+      const d=await fx2(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=2y`,8000);
+      const r=d?.chart?.result?.[0];
+      if(!r) continue;
+      const ts=r.timestamp, c=r.indicators.quote[0].close, map={};
+      for(let i=0;i<ts.length;i++){ if(c[i]>0) map[tsToDay(ts[i])]=c[i]; }
+      if(isKR) BENCH_KR=map; else BENCH_US=map;
+    }catch{}
+  }
+}
+function calcBeta(ts, cl, benchMap){
+  if(!benchMap) return null;
+  const sr=[], br=[];
+  for(let i=1;i<ts.length;i++){
+    if(!(cl[i]>0&&cl[i-1]>0)) continue;
+    const b0=benchMap[tsToDay(ts[i-1])], b1=benchMap[tsToDay(ts[i])];
+    if(b0>0&&b1>0){ sr.push((cl[i]-cl[i-1])/cl[i-1]); br.push((b1-b0)/b0); }
+  }
+  const N=252, s=sr.slice(-N), b=br.slice(-N);  // 최근 1년 회귀
+  if(s.length<30) return null;
+  const ms=s.reduce((a,x)=>a+x,0)/s.length, mb=b.reduce((a,x)=>a+x,0)/b.length;
+  let cov=0, vb=0;
+  for(let i=0;i<s.length;i++){ cov+=(s[i]-ms)*(b[i]-mb); vb+=(b[i]-mb)**2; }
+  return vb>0 ? +(cov/vb).toFixed(2) : null;
+}
+
 async function loadFX(){
   // 현재 환율
   const d=await fx2('https://open.er-api.com/v6/latest/USD',5000);
@@ -504,10 +535,12 @@ async function fetchTk(p){
   const tk=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
   const h52=Math.max(...hi.filter(v=>v!=null&&v>0)),l52=Math.min(...lo.filter(v=>v!=null&&v>0));
   const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
-  const rets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?((v-cl[i])/cl[i]):NaN).filter(v=>!isNaN(v));
+  const allRets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?((v-cl[i])/cl[i]):NaN).filter(v=>!isNaN(v));
+  const rets=allRets.slice(-63);  // 최근 3개월(63거래일) 역사적 변동성
   const avgR=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
-  const vol=rets.length>5?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
-  const beta=r.meta?.beta||1.0;
+  const vol=rets.length>10?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
+  const betaCalc=calcBeta(ts,cl,p.krw?BENCH_KR:BENCH_US);
+  const beta=betaCalc==null?1.0:betaCalc;
   const rsiVal=calcRSI(cl.filter(v=>!isNaN(v)));
   const rs=rsk(price,ma50,ma100,ma250,beta,h52,l52,vol,cp,tk,cl);
 
@@ -632,7 +665,7 @@ async function fetchTk(p){
           sa:isNaN(lsa)?null:+lsa.toFixed(2),sb:isNaN(lsb)?null:+lsb.toFixed(2),cp,tk},
     lv:{h52:+h52.toFixed(2),l52:+l52.toFixed(2),
         vsH:+((price-h52)/h52*100).toFixed(1),rp},
-    risk:{score:rs,beta:+(beta).toFixed(2),vol:isNaN(vol)?null:+vol.toFixed(1),rsi:rsiVal},
+    risk:{score:rs,beta:betaCalc==null?null:+betaCalc.toFixed(2),vol:isNaN(vol)?null:+vol.toFixed(1),rsi:rsiVal},
     chart:{ohlc,m50:sl(m50v),m100:sl(m100v),m250:sl(m250v),
            tn:sl(tn),kj:sl(kj),sa:slSASB(sa),sb:slSASB(sb)},
   };
@@ -753,6 +786,7 @@ async function runLoad(){
   setL(0,'환율 조회 중...');
 
   await loadFX();
+  await loadBench();
 
   let done=0;
   const tot=PORTFOLIO.length;
@@ -1256,7 +1290,7 @@ function buildInfoStatic(r){
   var rsiLbl=rk.rsi<30?'\uacfc\ub9e4\ub3c4':rk.rsi>70?'\uacfc\ub9e4\uc218':'\uc911\ub9bd';
   h+='<div class="scard"><div class="cardlbl">RSI(14)</div><div class="cardval" style="color:'+rsiC+'">'+rk.rsi+'</div><div style="font-size:9.5px;color:var(--t3)">'+rsiLbl+'</div></div>';
   h+='<div class="scard"><div class="cardlbl">\ubca0\ud0c0 / \uc5f0\ubcc0\ub3d9\uc131</div>';
-  h+='<div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">\u03b2 '+rk.beta+'<br>\u03c3 '+(rk.vol==null?'\u2014':rk.vol+'%')+'</div></div></div>';
+  h+='<div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">\u03b2 '+(rk.beta==null?'\u2014':rk.beta)+'<br>\u03c3(3M) '+(rk.vol==null?'\u2014':rk.vol+'%')+'</div></div></div>';
   h+='<div class="dsec">\uc5b4\ub2dd / \ubaa9\ud45c\uc8fc\uac00 / IB \ub3d9\ud5a5</div>';
   h+='<div id="det-async" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0"><span class="spinner"></span> \ub370\uc774\ud130 \ub85c\ub529 \uc911...</div>';
   h+='<div class="dsec">\ucd5c\uc2e0 \ub274\uc2a4</div>';

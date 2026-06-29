@@ -384,9 +384,10 @@ async function fetchFull(ticker){
   const tkSig=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
 
   // RSI
-  const rets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
+  const allRets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
+  const rets=allRets.slice(-63);  // 최근 3개월(63거래일) 역사적 변동성
   const avgR=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
-  const vol=rets.length>5?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
+  const vol=rets.length>10?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
   const rsiV=(()=>{const d=cl.slice(-15).map((v,i,a)=>i>0?v-a[i-1]:NaN).filter(v=>!isNaN(v));
     const g=d.filter(v=>v>0).reduce((a,b)=>a+b,0)/14;
     const l=-d.filter(v=>v<0).reduce((a,b)=>a+b,0)/14;
@@ -1000,7 +1001,7 @@ function buildInfo(d,isKRW){
   h+=card('위험도', rk.score>=70?'var(--red)':rk.score>=45?'var(--amber)':'var(--green)', rk.score+'/100');
   h+=`<div class="scard"><div class="cardlbl">RSI / 변동성</div>
     <div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">
-      RSI ${rk.rsi}<br>σ ${(rk.vol==null||isNaN(rk.vol))?'—':rk.vol+'%'}
+      RSI ${rk.rsi}<br>σ(3M) ${(rk.vol==null||isNaN(rk.vol))?'—':rk.vol+'%'}
     </div></div>`;
   h+=`</div>`;
 
