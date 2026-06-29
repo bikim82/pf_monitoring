@@ -83,8 +83,9 @@ def save_seen_ids(seen: set):
 
 def is_recent(published_time_str: str) -> bool:
     """
-    youtubesearchpython 반환 상대시간으로 48시간 이내 여부 판단.
-    예: '3 hours ago', '1 day ago', '2 days ago', 'Just now'
+    youtubesearchpython 반환 상대시간으로 7일 이내 여부 판단.
+    예: '3 hours ago', '1 day ago', '5 days ago', 'Just now'
+    CEO 인터뷰는 매일 올라오지 않으므로 7일 window 사용.
     """
     if not published_time_str:
         return False
@@ -93,7 +94,7 @@ def is_recent(published_time_str: str) -> bool:
         return True
     if "day" in s:
         m = re.search(r"(\d+)\s+day", s)
-        return bool(m and int(m.group(1)) <= 2)
+        return bool(m and int(m.group(1)) <= 7)
     return False
 
 

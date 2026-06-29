@@ -41,7 +41,7 @@ Return ONLY valid JSON, no markdown, no explanation."""
 #  최근 카드 로드 (72시간 이내)
 # ────────────────────────────────────────────
 
-def load_recent_cards(hours: int = 72) -> list:
+def load_recent_cards(hours: int = 168) -> list:  # 7일
     if not CARDS_INPUT.exists():
         return []
     data = json.loads(CARDS_INPUT.read_text(encoding="utf-8"))
@@ -185,8 +185,8 @@ def run(cards: list | None = None) -> dict | None:
         target_cards = cards
         print(f" Agent 2에서 전달받은 카드: {len(target_cards)}장")
     else:
-        target_cards = load_recent_cards(hours=72)
-        print(f" intel_cards.json에서 로드: {len(target_cards)}장 (최근 72h)")
+        target_cards = load_recent_cards(hours=168)
+        print(f" intel_cards.json에서 로드: {len(target_cards)}장 (최근 7일)")
 
     if not target_cards:
         print(" 분석할 카드 없음 — 종료")
