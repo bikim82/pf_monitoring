@@ -358,13 +358,17 @@ document.addEventListener('keydown',e=>{
 const PRX=[
   u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
   u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
   u=>u
 ];
 async function fx2(url,ms=9000){
   for(const mk of PRX){
     try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
       const r=await fetch(mk(url),{signal:c.signal});clearTimeout(t);
-      const j=await r.json();return j.contents?JSON.parse(j.contents):j;
+      if(!r.ok) continue;                              // 403 등 거르기
+      const j=await r.json();
+      const data=j.contents?JSON.parse(j.contents):j;
+      if(data&&typeof data==='object'&&!data.error&&!data.Error) return data;  // 프록시 에러객체 거르기
     }catch{}
   }return null;
 }
@@ -551,12 +555,12 @@ async function runLoad(){
   setL(0,'초기화...');
   const total=ALL_STOCKS.length;
   let done=0;
-  for(let i=0;i<ALL_STOCKS.length;i+=5){
-    const batch=ALL_STOCKS.slice(i,i+5);
+  for(let i=0;i<ALL_STOCKS.length;i+=4){
+    const batch=ALL_STOCKS.slice(i,i+4);
     await Promise.all(batch.map(async item=>{
       setL(Math.round(done/total*85),`${item.k} 조회 중...`);
-      const[q,earn]=await Promise.all([fetchQuick(item.k).catch(()=>null),fetchEarnings(item.k).catch(()=>null)]);
-      if(q)D[item.k]={...q,earn};
+      const q=await fetchQuick(item.k).catch(()=>null);  // fetchEarnings는 crumb 차단으로 제거(프록시 부하↓)
+      if(q)D[item.k]={...q,earn:null};
       done++;
     }));
   }
