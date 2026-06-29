@@ -25,6 +25,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);font-family:var(--fo
 .numkey{padding:13px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--t1);font-family:var(--mono);font-size:17px;font-weight:600;cursor:pointer;transition:all .1s;width:100%}
 .numkey:hover{background:var(--bg2)}.numkey:active{transform:scale(.95)}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 /* Loading */
 #loading{position:fixed;inset:0;background:var(--bg0);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:998}
 .lbar-wrap{width:260px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin:20px 0 10px}
@@ -89,6 +90,12 @@ tbody tr:hover td:first-child{background:var(--bg3)}
 .fred-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;padding:7px 10px;background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.15);border-radius:7px;flex-wrap:wrap}
 .fred-inp{background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--t1);font-family:var(--mono);font-size:11px;flex:1;min-width:160px}
 .fred-inp:focus{outline:none;border-color:var(--blue)}
+.news-a{display:block;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;text-decoration:none;transition:all .12s}
+.news-a:hover{background:var(--bg3);border-color:var(--border2)}
+.ntitle{font-size:11.5px;line-height:1.5;color:var(--t1);margin-bottom:3px;font-weight:600}
+.nsum{font-size:10.5px;line-height:1.55;color:var(--t2);margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nmeta{font-size:9.5px;color:var(--t3);font-family:var(--mono);display:flex;align-items:center;gap:6px}
+.nsrc{display:inline-block;padding:1px 6px;border-radius:4px;background:var(--bg3);color:var(--blue);font-weight:600;font-family:var(--font)}
 @media(max-width:700px){.db{grid-template-columns:1fr}.dchart{border-right:none;border-bottom:1px solid var(--border)}.dinfo{max-height:none}}
 </style>
 </head>
@@ -377,9 +384,9 @@ async function fetchFull(ticker){
   const tkSig=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
 
   // RSI
-  const rets=cl.slice(1).map((v,i)=>(v!=null&&cl[i]!=null&&cl[i]>0)?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
-  const avgR=rets.reduce((a,b)=>a+b,0)/rets.length;
-  const vol=Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100;
+  const rets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?(v-cl[i])/cl[i]:NaN).filter(v=>!isNaN(v));
+  const avgR=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
+  const vol=rets.length>5?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
   const rsiV=(()=>{const d=cl.slice(-15).map((v,i,a)=>i>0?v-a[i-1]:NaN).filter(v=>!isNaN(v));
     const g=d.filter(v=>v>0).reduce((a,b)=>a+b,0)/14;
     const l=-d.filter(v=>v<0).reduce((a,b)=>a+b,0)/14;
@@ -885,6 +892,17 @@ async function openDet(ticker,name){
   document.getElementById('d-ch').textContent=` ${d.chg1d>=0?'+':''}${d.chg1d}%`;
   document.getElementById('d-ch').style.color=cc;
   buildInfo(d,isKRW);
+  // AI요약·컨센서스·뉴스 섹션 (비동기)
+  const _sp='<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite"></span>';
+  document.getElementById('dinfo').insertAdjacentHTML('beforeend',
+    '<div class="dsec">애널리스트 컨센서스</div>'+
+    '<div id="det-consensus" style="padding:4px 0">'+_sp+'</div>'+
+    '<div class="dsec">🤖 AI 요약</div>'+
+    '<div id="det-llm" style="padding:4px 0">'+_sp+'</div>'+
+    '<div class="dsec">최신 뉴스</div>'+
+    '<div id="det-news" style="padding:4px 0">'+_sp+'</div>'
+  );
+  loadDetAsync(ticker,d,isKRW);
   // 차트: lazy — 2y full data on demand
   const box=document.getElementById('chart-box');
   box.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:400px;color:var(--t3);font-size:12px;gap:8px"><span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite"></span>차트 로딩 중...</div>';
@@ -982,7 +1000,7 @@ function buildInfo(d,isKRW){
   h+=card('위험도', rk.score>=70?'var(--red)':rk.score>=45?'var(--amber)':'var(--green)', rk.score+'/100');
   h+=`<div class="scard"><div class="cardlbl">RSI / 변동성</div>
     <div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">
-      RSI ${rk.rsi}<br>σ ${rk.vol}%
+      RSI ${rk.rsi}<br>σ ${(rk.vol==null||isNaN(rk.vol))?'—':rk.vol+'%'}
     </div></div>`;
   h+=`</div>`;
 
@@ -997,11 +1015,18 @@ function buildInfo(d,isKRW){
 // FRED save
 window.showFredModal=function(){
   var cur=localStorage.getItem('els_fred')||'';
+  var gk=localStorage.getItem('gemini_key')||'';
+  var fnk=localStorage.getItem('finnhub_key')||'';
+  var ist='width:100%;margin-bottom:6px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--t1);font-size:11px;box-sizing:border-box';
   showModal('<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:18px;width:100%;max-width:380px">'+
-    '<div style="font-size:13px;font-weight:700;margin-bottom:6px">⚙️ FRED API Key 설정</div>'+
-    '<div style="font-size:10px;color:var(--t3);margin-bottom:12px">UST 2Y · KTB 3Y/30Y · JGB 30Y 조회에 필요<br>fred.stlouisfed.org 무료 발급</div>'+
-    '<input id="fmi" type="password" value="'+cur+'" placeholder="32자리 키" style="width:100%;margin-bottom:10px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--t1);font-size:11px">'+
-    '<div style="display:flex;gap:8px">'+
+    '<div style="font-size:13px;font-weight:700;margin-bottom:10px">⚙️ API Key 설정</div>'+
+    '<div style="font-size:10px;color:var(--t3);margin-bottom:4px">FRED — UST 2Y · KTB 3Y/30Y · JGB 30Y · <span style="color:var(--blue)">fred.stlouisfed.org</span></div>'+
+    '<input id="fmi" type="password" value="'+cur+'" placeholder="FRED 키" style="'+ist+'">'+
+    '<div style="font-size:10px;color:var(--t3);margin:10px 0 4px;padding-top:10px;border-top:1px solid var(--border)">Gemini — AI 요약카드 · <span style="color:var(--blue)">aistudio.google.com</span></div>'+
+    '<input id="gmi" type="password" value="'+gk+'" placeholder="AIza..." style="'+ist+'">'+
+    '<div style="font-size:10px;color:var(--t3);margin:10px 0 4px">Finnhub — 컨센서스·뉴스 · <span style="color:var(--blue)">finnhub.io</span></div>'+
+    '<input id="fnmi" type="password" value="'+fnk+'" placeholder="finnhub 키" style="'+ist+'">'+
+    '<div style="display:flex;gap:8px;margin-top:12px">'+
     '<button onclick="closeModal()" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--t2);font-size:12px;cursor:pointer">취소</button>'+
     '<button onclick="window._applyFM()" style="flex:1;padding:9px;border-radius:6px;border:none;background:var(--blue);color:#000;font-size:12px;font-weight:700;cursor:pointer">저장</button>'+
     '</div></div>');
@@ -1009,12 +1034,155 @@ window.showFredModal=function(){
 window._applyFM=function(){
   var v=document.getElementById('fmi')&&document.getElementById('fmi').value.trim();
   if(v){fredKey=v;localStorage.setItem('els_fred',v);}
+  var g=document.getElementById('gmi'); if(g){ var gv=g.value.trim(); if(gv) localStorage.setItem('gemini_key',gv); else localStorage.removeItem('gemini_key'); }
+  var fn=document.getElementById('fnmi'); if(fn){ var fv=fn.value.trim(); if(fv) localStorage.setItem('finnhub_key',fv); else localStorage.removeItem('finnhub_key'); }
   closeModal();runLoad();
 };
 window.saveFred=function(){
   const v=document.getElementById('fred-inp').value.trim();
   fredKey=v;localStorage.setItem('els_fred',v);runLoad();
 };
+
+// ── Gemini / Finnhub: AI요약·컨센서스·뉴스 ──────────
+function relTime(ts){
+  if(!ts) return '';
+  const diff=Date.now()/1000-ts;
+  if(diff<60) return '방금';
+  if(diff<3600) return Math.round(diff/60)+'분 전';
+  if(diff<86400) return Math.round(diff/3600)+'시간 전';
+  if(diff<7*86400) return Math.round(diff/86400)+'일 전';
+  return new Date(ts*1000).toLocaleDateString('ko-KR');
+}
+async function callGemini(prompt){
+  const key=localStorage.getItem('gemini_key');
+  if(!key) throw new Error('키 없음 (⚙️ 설정)');
+  const res=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
+       generationConfig:{maxOutputTokens:512,temperature:0.2,thinkingConfig:{thinkingBudget:0}}}),
+     signal:AbortSignal.timeout(18000)});
+  if(!res.ok){
+    let msg='';
+    try{const e=await res.json();msg=e?.error?.message||'';}catch{}
+    throw new Error(`HTTP ${res.status}${msg?': '+msg.slice(0,90):''}`);
+  }
+  const j=await res.json();
+  return j.candidates?.[0]?.content?.parts?.[0]?.text||null;
+}
+async function loadLLMCard(ticker,d,isKRW){
+  const el=document.getElementById('det-llm');
+  if(!el) return;
+  if(!localStorage.getItem('gemini_key')){
+    el.innerHTML='<span style="color:var(--t3);font-size:11px">Gemini 키 없음 (⚙️ 설정)</span>';
+    return;
+  }
+  const cloudMap={a:'구름 위(강세)',i:'구름 내(중립)',b:'구름 아래(약세)'};
+  const ic=d.ichi||{},ma=d.ma||{},rk=d.risk||{},lv=d.lv||{};
+  const prompt=`너는 금융시장 분석 어시스턴트야. 아래 데이터로 한국어로 간결하게 분석해.
+
+종목/지표: ${ticker}
+현재가: ${isKRW?'₩'+Math.round(d.price).toLocaleString('ko'):d.price} (전일 ${d.chg1d>=0?'+':''}${d.chg1d}%)
+MA50 이격: ${ma.p50!=null?(ma.p50>=0?'+':'')+ma.p50+'%':'없음'} / MA250: ${ma.p250!=null?(ma.p250>=0?'+':'')+ma.p250+'%':'없음'}
+일목구름: ${cloudMap[ic.cp]||'?'} / ${ic.tkSig==='bull'?'강세배열':'약세배열'}
+52주 위치: ${lv.rp!=null?lv.rp+'%':'?'} · RSI ${rk.rsi}
+
+반드시 이 형식으로만 답해:
+[강세] 한 문장 이유
+[약세] 한 문장 이유
+SCORE:숫자(-10~+10)`;
+  let txt;
+  try{ txt=await callGemini(prompt); }
+  catch(e){ el.innerHTML='<span style="color:var(--red);font-size:11px">'+(e.message||'호출 실패')+'</span>'; return; }
+  if(!txt){ el.innerHTML='<span style="color:var(--t3);font-size:11px">응답 없음</span>'; return; }
+  const clean=txt.replace(/[*#`]/g,'');
+  const bLine=clean.match(/\[?강세\]?[:：]?[^\n]*/)?.[0]||'';
+  const rLine=clean.match(/\[?약세\]?[:：]?[^\n]*/)?.[0]||'';
+  const sc=clean.match(/SCORE\s*[:：]?\s*([+-]?\d+)/i)?.[1];
+  const score=sc!=null?parseInt(sc):null;
+  const sc_c=score==null?'var(--t3)':score>=3?'var(--green)':score<=-3?'var(--red)':'var(--amber)';
+  el.innerHTML=
+    (bLine?`<div style="font-size:11.5px;color:var(--green);line-height:1.6;margin-bottom:5px">▲ ${bLine.replace(/\[?강세\]?[:：]?\s*/,'').trim()}</div>`:'')+
+    (rLine?`<div style="font-size:11.5px;color:var(--red);line-height:1.6;margin-bottom:8px">▼ ${rLine.replace(/\[?약세\]?[:：]?\s*/,'').trim()}</div>`:'')+
+    (score!=null?`<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;background:${sc_c}22;border:1px solid ${sc_c}44">
+      <span style="font-size:10px;color:var(--t3)">SCORE</span>
+      <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:${sc_c}">${score>=0?'+':''}${score}</span>
+    </div>`:'');
+}
+async function loadDetAsync(ticker,d,isKRW){
+  const fk=localStorage.getItem('finnhub_key');
+  let news=[];
+
+  // 뉴스 — Finnhub company-news (출처·요약), Yahoo search 폴백
+  if(fk){
+    try{
+      const _n=Date.now();
+      const _nf=new Date(_n-14*864e5).toISOString().slice(0,10);
+      const _nt=new Date(_n).toISOString().slice(0,10);
+      const r=await fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${_nf}&to=${_nt}&token=${fk}`);
+      if(r.ok){
+        const arr=await r.json();
+        if(Array.isArray(arr)&&arr.length) news=arr.sort((a,b)=>b.datetime-a.datetime).slice(0,5).map(x=>({
+          title:x.headline,link:x.url,pub:x.source,summary:x.summary,ts:x.datetime
+        }));
+      }
+    }catch{}
+  }
+  if(!news.length){
+    try{
+      const sd=await fx2(`https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&quotesCount=0&newsCount=6`,5000);
+      if(sd?.news) news=sd.news.slice(0,5).map(x=>({title:x.title,link:x.link,pub:x.publisher,ts:x.providerPublishTime}));
+    }catch{}
+  }
+
+  // 컨센서스 — Finnhub recommendation
+  const conEl=document.getElementById('det-consensus');
+  if(conEl){
+    let consensus=null;
+    if(fk){
+      try{
+        const r=await fetch(`https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${fk}`);
+        if(r.ok){const arr=await r.json();const t=Array.isArray(arr)?arr[0]:null;
+          if(t) consensus={sb:t.strongBuy||0,b:t.buy||0,h:t.hold||0,s:t.sell||0,ss:t.strongSell||0};}
+      }catch{}
+    }
+    if(consensus){
+      const tot=consensus.sb+consensus.b+consensus.h+consensus.s+consensus.ss||1;
+      const ws=(consensus.sb*2+consensus.b-consensus.s-consensus.ss*2)/tot;
+      const lbl=ws>=1?'강력매수':ws>=0.3?'매수':ws>=-0.3?'보유':ws>=-1?'매도':'강력매도';
+      const lc=ws>=0.3?'var(--green)':ws<=-0.3?'var(--red)':'var(--amber)';
+      const bars=[{l:'강매수',v:consensus.sb,c:'var(--green)'},{l:'매수',v:consensus.b,c:'#3fb97a'},{l:'보유',v:consensus.h,c:'var(--amber)'},{l:'매도',v:consensus.s,c:'#f87171'},{l:'강매도',v:consensus.ss,c:'var(--red)'}];
+      const mx=Math.max(...bars.map(b=>b.v),1);
+      conEl.innerHTML=
+        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:13px;font-weight:700;color:${lc}">${lbl}</span><span style="font-size:10px;color:var(--t3)">${tot}명</span></div>`+
+        bars.map(b=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-size:9.5px;color:var(--t3);width:36px;flex-shrink:0">${b.l}</span><div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="width:${(b.v/mx*100).toFixed(1)}%;height:100%;background:${b.c};border-radius:3px"></div></div><span style="font-size:10px;font-family:var(--mono);color:${b.c};width:20px;text-align:right">${b.v}</span></div>`).join('');
+    } else {
+      conEl.innerHTML=fk?'<span style="color:var(--t3);font-size:11px">데이터 없음 (지수/금리/FX 또는 비미국 종목)</span>':'<span style="color:var(--t3);font-size:11px">Finnhub 키 없음 (⚙️ 설정)</span>';
+    }
+  }
+
+  // AI 요약 (fire-and-forget)
+  loadLLMCard(ticker,d,isKRW);
+
+  // 뉴스 + 감성점수
+  const nEl=document.getElementById('det-news');
+  if(nEl){
+    if(news.length){
+      const POS=['record','beat','surge','rally','upgrade','buy','strong','growth','exceed','profit','raises','boom','win'];
+      const NEG=['miss','fall','cut','downgrade','sell','weak','loss','decline','crash','concern','warning','layoff','slump'];
+      let sentScore=0;
+      news.forEach(n=>{const t=(n.title||'').toLowerCase();POS.forEach(w=>{if(t.includes(w))sentScore++;});NEG.forEach(w=>{if(t.includes(w))sentScore--;});});
+      sentScore=Math.max(-5,Math.min(5,sentScore));
+      const sentC=sentScore>=2?'var(--green)':sentScore<=-2?'var(--red)':'var(--amber)';
+      const sentLbl=sentScore>=2?'강세':sentScore<=-2?'약세':'중립';
+      nEl.innerHTML=
+        `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px">뉴스 감성</span><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sentC}">${sentScore>=0?'+':''}${sentScore} ${sentLbl}</span></div>`+
+        news.map((n,i)=>`<a class="news-a" href="${n.link}" target="_blank" rel="noopener"><div class="ntitle">${i===0?'🔥 ':''}${n.title}</div>${n.summary?`<div class="nsum">${n.summary}</div>`:''}<div class="nmeta"><span class="nsrc">${n.pub||'출처 미상'}</span><span>${relTime(n.ts)}</span></div></a>`).join('');
+    } else {
+      nEl.innerHTML='<span style="color:var(--t3);font-size:11px">뉴스 없음</span>';
+    }
+  }
+}
 </script>
 </body>
 </html>

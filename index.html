@@ -118,8 +118,10 @@ tbody tr:hover{background:var(--bg3)}
 .ib-row.mt{border-color:var(--t3)}
 .news-a{display:block;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;text-decoration:none;transition:all .12s}
 .news-a:hover{background:var(--bg3);border-color:var(--border2)}
-.ntitle{font-size:11.5px;line-height:1.5;color:var(--t1);margin-bottom:3px}
-.nmeta{font-size:9.5px;color:var(--t3);font-family:var(--mono)}
+.ntitle{font-size:11.5px;line-height:1.5;color:var(--t1);margin-bottom:3px;font-weight:600}
+.nsum{font-size:10.5px;line-height:1.55;color:var(--t2);margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nmeta{font-size:9.5px;color:var(--t3);font-family:var(--mono);display:flex;align-items:center;gap:6px}
+.nsrc{display:inline-block;padding:1px 6px;border-radius:4px;background:var(--bg3);color:var(--blue);font-weight:600;font-family:var(--font)}
 .tgt-track{height:4px;background:rgba(255,255,255,.08);border-radius:2px;position:relative;margin:6px 0}
 .tgt-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--red),var(--amber),var(--green))}
 .tgt-mark{position:absolute;top:-5px;width:3px;height:14px;border-radius:2px;background:var(--t1);transform:translateX(-50%)}
@@ -346,6 +348,15 @@ async function fx2(url, ms=6000){
   }
   return null;
 }
+function relTime(ts){
+  if(!ts) return '';
+  const diff=Date.now()/1000-ts;
+  if(diff<60) return '방금';
+  if(diff<3600) return Math.round(diff/60)+'분 전';
+  if(diff<86400) return Math.round(diff/3600)+'시간 전';
+  if(diff<7*86400) return Math.round(diff/86400)+'일 전';
+  return new Date(ts*1000).toLocaleDateString('ko-KR');
+}
 
 async function loadFX(){
   // 현재 환율
@@ -493,9 +504,9 @@ async function fetchTk(p){
   const tk=(!isNaN(ltn)&&!isNaN(lkj))&&ltn>lkj?'bull':'bear';
   const h52=Math.max(...hi.filter(v=>v!=null&&v>0)),l52=Math.min(...lo.filter(v=>v!=null&&v>0));
   const rp=h52>l52?+((price-l52)/(h52-l52)*100).toFixed(1):50;
-  const rets=cl.slice(1).map((v,i)=>cl[i]?((v-cl[i])/cl[i]):NaN).filter(v=>!isNaN(v));
-  const avgR=rets.reduce((a,b)=>a+b,0)/rets.length;
-  const vol=Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100;
+  const rets=cl.slice(1).map((v,i)=>(v!=null&&!isNaN(v)&&cl[i]!=null&&!isNaN(cl[i])&&cl[i]>0)?((v-cl[i])/cl[i]):NaN).filter(v=>!isNaN(v));
+  const avgR=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
+  const vol=rets.length>5?Math.sqrt(rets.reduce((a,b)=>a+(b-avgR)**2,0)/rets.length)*Math.sqrt(252)*100:NaN;
   const beta=r.meta?.beta||1.0;
   const rsiVal=calcRSI(cl.filter(v=>!isNaN(v)));
   const rs=rsk(price,ma50,ma100,ma250,beta,h52,l52,vol,cp,tk,cl);
@@ -621,7 +632,7 @@ async function fetchTk(p){
           sa:isNaN(lsa)?null:+lsa.toFixed(2),sb:isNaN(lsb)?null:+lsb.toFixed(2),cp,tk},
     lv:{h52:+h52.toFixed(2),l52:+l52.toFixed(2),
         vsH:+((price-h52)/h52*100).toFixed(1),rp},
-    risk:{score:rs,beta:+(beta).toFixed(2),vol:+vol.toFixed(1),rsi:rsiVal},
+    risk:{score:rs,beta:+(beta).toFixed(2),vol:isNaN(vol)?null:+vol.toFixed(1),rsi:rsiVal},
     chart:{ohlc,m50:sl(m50v),m100:sl(m100v),m250:sl(m250v),
            tn:sl(tn),kj:sl(kj),sa:slSASB(sa),sb:slSASB(sb)},
   };
@@ -633,24 +644,45 @@ async function fetchTk(p){
 async function fetchDetail(tk){
   let ibList=[],targets={},earn={},consensus=null,news=[];
 
-  // 뉴스 — Yahoo search API (crumb 불필요, 프록시 경유)
-  try{
-    const sd=await fx2(`https://query2.finance.yahoo.com/v1/finance/search?q=${tk}&quotesCount=0&newsCount=6`,6000);
-    if(sd?.news) news=sd.news.slice(0,5).map(x=>({
-      title:x.title,link:x.link,pub:x.publisher,
-      date:x.providerPublishTime?new Date(x.providerPublishTime*1000).toLocaleDateString('ko-KR'):''
-    }));
-  }catch{}
+  // 뉴스 — Finnhub company-news 우선 (출처·요약 명확), 실패 시 Yahoo search 폴백
+  const fk0=localStorage.getItem('finnhub_key');
+  if(fk0){
+    try{
+      const _nn=Date.now();
+      const _nf=new Date(_nn-14*864e5).toISOString().slice(0,10);
+      const _nt=new Date(_nn).toISOString().slice(0,10);
+      const r=await fetch(`https://finnhub.io/api/v1/company-news?symbol=${tk}&from=${_nf}&to=${_nt}&token=${fk0}`);
+      if(r.ok){
+        const arr=await r.json();
+        if(Array.isArray(arr)&&arr.length){
+          news=arr.sort((a,b)=>b.datetime-a.datetime).slice(0,5).map(x=>({
+            title:x.headline,link:x.url,pub:x.source,summary:x.summary,ts:x.datetime
+          }));
+        }
+      }
+    }catch{}
+  }
+  if(!news.length){
+    try{
+      const sd=await fx2(`https://query2.finance.yahoo.com/v1/finance/search?q=${tk}&quotesCount=0&newsCount=6`,6000);
+      if(sd?.news) news=sd.news.slice(0,5).map(x=>({
+        title:x.title,link:x.link,pub:x.publisher,ts:x.providerPublishTime
+      }));
+    }catch{}
+  }
 
   // 어닝·컨센서스·IB등급 — Finnhub (Yahoo quoteSummary가 crumb 인증으로 차단됨)
   const fk=localStorage.getItem('finnhub_key');
   if(fk){
     const F='https://finnhub.io/api/v1';
     const jget=async u=>{const r=await fetch(u);if(!r.ok)throw new Error('finnhub '+r.status);return r.json();};
+    const _now=Date.now();
+    const _from=new Date(_now-120*864e5).toISOString().slice(0,10);
+    const _to=new Date(_now+120*864e5).toISOString().slice(0,10);
     const [rec,upg,ern,tgt]=await Promise.allSettled([
       jget(`${F}/stock/recommendation?symbol=${tk}&token=${fk}`),
       jget(`${F}/stock/upgrade-downgrade?symbol=${tk}&token=${fk}`),
-      jget(`${F}/calendar/earnings?symbol=${tk}&token=${fk}`),
+      jget(`${F}/calendar/earnings?symbol=${tk}&from=${_from}&to=${_to}&token=${fk}`),
       jget(`${F}/stock/price-target?symbol=${tk}&token=${fk}`)
     ]);
 
@@ -1160,9 +1192,9 @@ ${headlines}
   try{ txt=await callGemini(prompt); }
   catch(e){ el.innerHTML='<span style="color:var(--red);font-size:11px">'+(e.message||'호출 실패')+'</span>'; return; }
   if(!txt){el.innerHTML='<span style="color:var(--t3);font-size:11px">응답 없음</span>';return;}
-  const scoreMatch=txt.match(/SCORE:\s*(-?\d+)/);
+  const scoreMatch=txt.match(/SCORE\s*[:：]?\s*([+-]?\d+)/i);
   const score=scoreMatch?parseInt(scoreMatch[1]):null;
-  const body=txt.replace(/SCORE:\s*-?\d+/g,'').trim();
+  const body=txt.replace(/SCORE\s*[:：]?\s*[+-]?\d+/ig,'').replace(/[*#`]/g,'').trim();
   const lines=body.split('\n').filter(l=>l.trim());
   let bullL='',bearL='';
   lines.forEach(l=>{
@@ -1224,7 +1256,7 @@ function buildInfoStatic(r){
   var rsiLbl=rk.rsi<30?'\uacfc\ub9e4\ub3c4':rk.rsi>70?'\uacfc\ub9e4\uc218':'\uc911\ub9bd';
   h+='<div class="scard"><div class="cardlbl">RSI(14)</div><div class="cardval" style="color:'+rsiC+'">'+rk.rsi+'</div><div style="font-size:9.5px;color:var(--t3)">'+rsiLbl+'</div></div>';
   h+='<div class="scard"><div class="cardlbl">\ubca0\ud0c0 / \uc5f0\ubcc0\ub3d9\uc131</div>';
-  h+='<div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">\u03b2 '+rk.beta+'<br>\u03c3 '+rk.vol+'%</div></div></div>';
+  h+='<div style="font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.8;margin-top:2px">\u03b2 '+rk.beta+'<br>\u03c3 '+(rk.vol==null?'\u2014':rk.vol+'%')+'</div></div></div>';
   h+='<div class="dsec">\uc5b4\ub2dd / \ubaa9\ud45c\uc8fc\uac00 / IB \ub3d9\ud5a5</div>';
   h+='<div id="det-async" style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:11px;padding:8px 0"><span class="spinner"></span> \ub370\uc774\ud130 \ub85c\ub529 \uc911...</div>';
   h+='<div class="dsec">\ucd5c\uc2e0 \ub274\uc2a4</div>';
@@ -1362,9 +1394,10 @@ async function loadDetailAsync(tk){
           <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sentC}">${sentScore>=0?'+':''}${sentScore} ${sentLbl}</span>
         </div>`+
         det.news.map((n,i)=>`
-          <a class="news-a" href="${n.link}" target="_blank">
+          <a class="news-a" href="${n.link}" target="_blank" rel="noopener">
             <div class="ntitle">${i===0?'🔥 ':''}${n.title}</div>
-            <div class="nmeta">${n.pub||''} · ${n.date||''}</div>
+            ${n.summary?`<div class="nsum">${n.summary}</div>`:''}
+            <div class="nmeta"><span class="nsrc">${n.pub||'출처 미상'}</span><span>${relTime(n.ts)}</span></div>
           </a>`).join('');
     } else {
       nEl.innerHTML='<span style="color:var(--t3);font-size:11px">뉴스 없음</span>';
