@@ -1,0 +1,7 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+data/raw_content.json
+data/intel_cards.json
+data/theme_report.json
+data/seen_ids.json

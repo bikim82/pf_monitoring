@@ -1,0 +1,41 @@
+name: CEO Signal Pipeline
+
+on:
+  schedule:
+    # 월~금 오전 6시 KST (= 전날 21:00 UTC)
+    - cron: '0 21 * * 0-4'
+    # 월~금 오후 6시 KST (= 당일 09:00 UTC)
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:  # 수동 실행 버튼
+
+jobs:
+  generate-signals:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install youtube-search-python youtube-transcript-api google-genai
+          pip install "httpx==0.24.1"
+
+      - name: Run CEO Signal Pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python agents/pipeline.py
+
+      - name: Commit and push signals.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --staged --quiet && echo "변경사항 없음" || \
+            git commit -m "signals: $(date -u +'%Y-%m-%d %H:%M') UTC auto-update"
+          git push

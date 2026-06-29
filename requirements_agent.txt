@@ -1,0 +1,4 @@
+# AI Bottleneck CEO Signal Agent 의존성
+youtube-search-python
+youtube-transcript-api
+google-genai          # Agent 2/3/4 에서 Gemini 2.5 Flash API 호출용
